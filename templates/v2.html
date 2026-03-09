@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古诗文绝杀 | 热血漫版</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --manga-black: #121212;
+            --manga-white: #ffffff;
+            --manga-gold: #ffcc00;
+            --manga-red: #ff3300;
+            --comic-font: "Impact", "Microsoft YaHei", "ZCOOL KuaiLe", sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #eee;
+            /* 漫画波点纹理 */
+            background-image: radial-gradient(var(--manga-black) 1px, transparent 0);
+            background-size: 20px 20px;
+            background-attachment: fixed;
+            font-family: "PingFang SC", "Heiti SC", sans-serif;
+            min-height: 100svh;
+            overflow: hidden;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: 0.5s;
+        }
+
+        /* --- 顶部标题背景设计 --- */
+        header {
+            position: relative; z-index: 100;
+            padding: 32px 0;
+            display: flex; justify-content: center;
+        }
+        .title-box {
+            background: var(--manga-black);
+            color: var(--manga-white);
+            padding: 14px 32px;
+            transform: skew(-10deg) rotate(-2deg);
+            border: 4px solid var(--manga-white);
+            box-shadow: 10px 10px 0 var(--manga-red);
+            position: relative;
+        }
+        .title-box::before {
+            content: "ZEN!";
+            position: absolute; top: -20px; left: -20px;
+            background: var(--manga-red); padding: 5px 10px;
+            font-size: 0.8rem; transform: rotate(-15deg);
+        }
+        .title-text {
+            font-size: clamp(1.4rem, 4.5vw, 2.2rem); font-weight: 900; letter-spacing: clamp(1px, 1vw, 5px);
+            text-shadow: 3px 3px 0 var(--manga-red);
+        }
+
+        /* --- 主舞台 --- */
+        main {
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            position: relative; z-index: 10;
+            padding: 0 12px 24px;
+        }
+
+        .manga-panel {
+            width: min(850px, 95vw);
+            background: var(--manga-white);
+            border: 6px solid var(--manga-black);
+            padding: clamp(24px, 5vw, 60px) clamp(16px, 4vw, 40px);
+            position: relative;
+            box-shadow: 20px 20px 0 rgba(0,0,0,0.8);
+            transform: rotate(1deg);
+            background-image: 
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%);
+            background-size: 4px 4px;
+        }
+
+        /* 集中线特效 (Canvas) */
+        #speedLines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; opacity: 0; transition: opacity 0.2s;
+        }
+
+        /* 名字区域 */
+        .name-window {
+            height: 160px; overflow: hidden;
+            border: 4px solid var(--manga-black);
+            background: var(--manga-white);
+            margin-bottom: 30px; position: relative;
+        }
+        .name-strip { display: flex; flex-direction: column; }
+        .name-cell {
+            height: 160px; line-height: 160px;
+            font-size: clamp(3.2rem, 10vw, 5.5rem); font-weight: 900;
+            text-align: center; color: var(--manga-black);
+        }
+        .highlight-win {
+            color: var(--manga-gold);
+            -webkit-text-stroke: 3px var(--manga-black);
+            text-shadow: 8px 8px 0 var(--manga-black);
+            transform: scale(1.1) skew(-5deg);
+        }
+
+        /* 题目 */
+        .poem-tag {
+            display: inline-block; background: var(--manga-black); color: #fff;
+            padding: 5px 15px; font-weight: bold; margin-bottom: 10px;
+            transform: skew(-15deg);
+        }
+        .poem-display {
+            font-size: clamp(1.4rem, 6vw, 2.2rem); font-weight: 900; margin-bottom: 30px;
+            opacity: 0; transform: translateX(-50px); transition: 0.5s;
+        }
+        .show-poem { opacity: 1; transform: translateX(0); }
+
+        /* --- 评价横幅 (核心增强部分) --- */
+        .result-banner {
+            position: absolute; top: 50%; left: 50%;
+            width: min(120%, 980px); height: 120px;
+            transform: translate(-50%, -50%) rotate(-5deg) scale(0);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; pointer-events: none; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .result-banner.active { transform: translate(-50%, -50%) rotate(-5deg) scale(1); }
+
+        .banner-bg {
+            width: 100%; height: 100%; background: var(--manga-black);
+            display: flex; align-items: center; justify-content: center;
+            border-top: 5px solid var(--manga-gold);
+            border-bottom: 5px solid var(--manga-gold);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        .banner-text {
+            color: var(--manga-gold); font-size: clamp(2.0rem, 7vw, 3.5rem); font-weight: 900;
+            letter-spacing: clamp(4px, 2vw, 15px); font-style: italic;
+        }
+        .banner-quote {
+            position: absolute; bottom: -50px;
+            background: white; color: black; border: 3px solid black;
+            padding: 10px 30px; font-weight: bold; font-size: 1.3rem;
+            box-shadow: 5px 5px 0 var(--manga-black);
+            width: max-content;
+        }
+
+        /* 失败横幅样式 */
+        .fail-banner .banner-bg { background: #333; border-color: #777; }
+        .fail-banner .banner-text { color: #fff; letter-spacing: 5px; }
+
+        /* --- 交互按钮 --- */
+        .controls {
+            margin-top: 20px; display: flex; justify-content: center; gap: 20px;
+            min-height: 80px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            border: 4px solid var(--manga-black); background: #fff;
+            padding: 14px clamp(18px, 6vw, 40px); font-size: clamp(1.05rem, 3.8vw, 1.3rem); font-weight: 900;
+            cursor: pointer; box-shadow: 8px 8px 0 var(--manga-black);
+            transition: 0.1s; position: relative;
+        }
+        .btn:active { transform: translate(4px, 4px); box-shadow: 2px 2px 0 var(--manga-black); }
+        .btn-go { background: var(--manga-gold); }
+        .btn-stop { background: var(--manga-red); color: white; animation: shake-btn 0.1s infinite; }
+        @keyframes shake-btn { 0%{left:0} 50%{left:2px} 100%{left:0} }
+
+        .btn-win { background: #00ff66; }
+        .btn-lose { background: #999; }
+
+        /* 弹窗配置 */
+        .settings-icon {
+            position: fixed; right: 20px; bottom: 20px; z-index: 1000;
+            cursor: pointer; background: white; border: 3px solid black; padding: 10px;
+        }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-box { background: white; padding: 30px; width: min(500px, 92vw); border: 5px solid black; }
+        textarea { width: 100%; height: 100px; margin-top: 10px; font-family: inherit; padding: 10px; border: 2px solid black; }
+
+        @media (max-width: 520px) {
+            body { overflow-y: auto; }
+            header { padding: 20px 0; }
+            .title-box { padding: 12px 18px; border-width: 3px; box-shadow: 7px 7px 0 var(--manga-red); }
+            .title-box::before { top: -16px; left: -12px; }
+
+            main { align-items: flex-start; padding: 0 10px 18px; }
+            .manga-panel { border-width: 5px; box-shadow: 12px 12px 0 rgba(0,0,0,0.8); transform: none; }
+
+            .name-window { height: 120px; margin-bottom: 20px; }
+            .name-cell { height: 120px; line-height: 120px; -webkit-text-stroke-width: 2px; text-shadow: 6px 6px 0 var(--manga-black); }
+
+            .poem-display { margin-bottom: 18px; }
+
+            .result-banner { width: 100%; height: 96px; }
+            .banner-quote { bottom: -44px; padding: 8px 16px; font-size: 1.05rem; max-width: 92vw; white-space: normal; text-align: center; }
+
+            .controls { gap: 12px; min-height: 72px; }
+            .btn { border-width: 3px; box-shadow: 6px 6px 0 var(--manga-black); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="title-box">
+            <h1 class="title-text">笔落惊风雨，诗成泣鬼神</h1>
+        </div>
+    </header>
+
+    <main>
+        <div class="manga-panel" id="mainPanel">
+            <canvas id="speedLines"></canvas>
+
+            <!-- 名字滚动 -->
+            <div class="name-window">
+                <div class="name-strip" id="nameStrip">
+                    <div class="name-cell">等 待</div>
+                </div>
+            </div>
+
+            <!-- 题目 -->
+            <div class="poem-tag">CHALLENGE:</div>
+            <div class="poem-display" id="poemTitle">《点击启动》</div>
+
+            <!-- 控制 -->
+            <div class="controls">
+                <button class="btn btn-go" id="mainBtn" onclick="handleAction()">启 动 (Space)</button>
+                <div id="resultGroup" style="display:none; gap:20px;">
+                    <button class="btn btn-win" onclick="finish(true)">🎉 完美绝杀</button>
+                    <button class="btn btn-lose" onclick="finish(false)">🌧️ 耻辱下播</button>
+                </div>
+            </div>
+
+            <!-- 成功/失败 大横幅 -->
+            <div class="result-banner" id="bannerSuccess">
+                <div class="banner-bg">
+                    <div class="banner-text">极 · 优</div>
+                </div>
+                <div class="banner-quote">“不是逢人苦誉君，亦狂亦侠亦温文”</div>
+            </div>
+
+            <div class="result-banner fail-banner" id="bannerFail">
+                <div class="banner-bg">
+                    <div class="banner-text">败 · 北</div>
+                </div>
+                <div class="banner-quote">“大道如青天，我独不得出”</div>
+            </div>
+        </div>
+    </main>
+
+    <div class="settings-icon" onclick="openSettings()">⚙️ 配置</div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-box">
+            <h3 style="background:black; color:white; padding:5px;">数据配置</h3>
+            <p style="margin-top:15px;"><strong>天选名单</strong> (每行一个)</p>
+            <textarea id="sInput"></textarea>
+            <p><strong>秘籍库</strong> (标题#内容)</p>
+            <textarea id="pInput"></textarea>
+            <div style="text-align:right; margin-top:15px;">
+                <button class="btn" onclick="closeSettings()" style="padding:5px 15px; box-shadow:none;">取消</button>
+                <button class="btn btn-go" onclick="saveSettings()" style="padding:5px 15px; box-shadow:none;">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Canvas 集中线动画 ---
+        const canvas = document.getElementById('speedLines');
+        const ctx = canvas.getContext('2d');
+        let isSpeeding = false;
+
+        function resize() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function drawLines() {
+            if (!isSpeeding) return;
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            ctx.strokeStyle = "rgba(0,0,0,0.2)";
+            ctx.lineWidth = 2;
+            for(let i=0; i<50; i++) {
+                ctx.beginPath();
+                let angle = Math.random() * Math.PI * 2;
+                let radius = Math.random() * canvas.width;
+                ctx.moveTo(canvas.width/2, canvas.height/2);
+                ctx.lineTo(
+                    canvas.width/2 + Math.cos(angle) * canvas.width,
+                    canvas.height/2 + Math.sin(angle) * canvas.height
+                );
+                ctx.stroke();
+            }
+            requestAnimationFrame(drawLines);
+        }
+
+        // --- 核心逻辑 ---
+        const defaultS = ["五杀少年", "全村的希望", "退堂鼓一级选手", "干饭第一名", "熬夜修仙党", "自带背景音乐"];
+        const defaultP = [{t:"《离骚》", c:"长太息以掩涕兮，哀民生之多艰。"}, {t:"《蜀道难》", c:"噫吁嚱，危乎高哉！"}];
+        
+        let students=[], poems=[], pool=[];
+        let isRunning = false;
+
+        const nameStrip = document.getElementById('nameStrip');
+        const mainBtn = document.getElementById('mainBtn');
+        const resultGroup = document.getElementById('resultGroup');
+        const poemDisplay = document.getElementById('poemTitle');
+        const bannerSuccess = document.getElementById('bannerSuccess');
+        const bannerFail = document.getElementById('bannerFail');
+        const mainPanel = document.getElementById('mainPanel');
+
+        function init() {
+            let s = localStorage.getItem('v6_s');
+            let p = localStorage.getItem('v6_p');
+            students = s ? JSON.parse(s) : [...defaultS];
+            poems = p ? JSON.parse(p) : [...defaultP];
+            pool = [...students];
+        }
+
+        let curS, curP;
+
+        function handleAction() {
+            if(pool.length === 0) return alert("战斗结束，全员通关！");
+            if(!isRunning) start(); else stop();
+        }
+
+        function start() {
+            isRunning = true;
+            isSpeeding = true;
+            drawLines();
+            canvas.style.opacity = 1;
+            
+            mainBtn.innerText = "停！";
+            mainBtn.className = "btn btn-stop";
+            resultGroup.style.display = "none";
+            poemDisplay.classList.remove('show-poem');
+            bannerSuccess.classList.remove('active');
+            bannerFail.classList.remove('active');
+            document.body.style.filter = "none";
+            
+            let html = "";
+            for(let i=0; i<30; i++) html += `<div class="name-cell">${pool[Math.floor(Math.random()*pool.length)]}</div>`;
+            nameStrip.innerHTML = html;
+
+            let offset = 0;
+            function loop() {
+                offset += 60;
+                if(offset > nameStrip.scrollHeight/2) offset = 0;
+                nameStrip.style.transform = `translateY(-${offset}px)`;
+                if(isRunning) requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function stop() {
+            isRunning = false;
+            isSpeeding = false;
+            canvas.style.opacity = 0;
+
+            curS = pool[Math.floor(Math.random()*pool.length)];
+            curP = poems[Math.floor(Math.random()*poems.length)];
+
+            nameStrip.innerHTML = `<div class="name-cell highlight-win">${curS}</div>`;
+            nameStrip.style.transform = `translateY(0)`;
+
+            // 弹出特效
+            setTimeout(() => {
+                poemDisplay.innerText = curP.t;
+                poemDisplay.classList.add('show-poem');
+                mainBtn.style.display = "none";
+                resultGroup.style.display = "flex";
+            }, 300);
+        }
+
+        function finish(win) {
+            if(win) {
+                bannerSuccess.classList.add('active');
+                confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } });
+                pool = pool.filter(s => s !== curS);
+            } else {
+                bannerFail.classList.add('active');
+                document.body.style.filter = "grayscale(1)"; // 漫画失败氛围
+            }
+
+            setTimeout(() => {
+                mainBtn.style.display = "block";
+                mainBtn.className = "btn btn-go";
+                mainBtn.innerText = "下一位";
+                resultGroup.style.display = "none";
+            }, 1500);
+        }
+
+        // 设置
+        const modal = document.getElementById('settingsModal');
+        function openSettings() {
+            document.getElementById('sInput').value = students.join('\n');
+            document.getElementById('pInput').value = poems.map(p=>`${p.t}#${p.c}`).join('\n');
+            modal.style.display = "flex";
+        }
+        function closeSettings() { modal.style.display = "none"; }
+        function saveSettings() {
+            let s = document.getElementById('sInput').value.split('\n').filter(x=>x.trim());
+            let p = document.getElementById('pInput').value.split('\n').filter(x=>x.trim()).map(x=>{let[t,c]=x.split('#');return{t,c}});
+            if(s.length) students=s; if(p.length) poems=p;
+            localStorage.setItem('v6_s', JSON.stringify(students));
+            localStorage.setItem('v6_p', JSON.stringify(poems));
+            pool = [...students]; closeSettings();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if(e.code === 'Space' && modal.style.display !== 'flex') {
+                e.preventDefault();
+                if(mainBtn.offsetParent) handleAction();
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>
