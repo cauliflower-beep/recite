@@ -5,7 +5,6 @@
  * Software: Goland
  * @Date: 2026/3/9 17:46
  */
-
 package main
 
 import (
@@ -16,19 +15,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ================== 第 2 步：数据模型与读取逻辑 ==================
+// ================== 1. 数据模型定义 ==================
 
-// Poem 定义古诗的数据结构（字段首字母大写，后面跟上 json 标签，方便解析）
-type Poem struct {
-	Title   string `json:"title"`
-	Author  string `json:"author"`
-	Rarity  string `json:"rarity"`
-	Content string `json:"content"`
+// Book 定义前端新的“教材->篇目”嵌套结构
+type Book struct {
+	Title string   `json:"title"`
+	Poems []string `json:"poems"`
 }
 
-// loadJSON 封装一个通用的读取文件并解析JSON的函数
-// 每次调用它，都会去读最新的文件，这就是我们说的“热更新”魔法！
-func loadJSON(filepath string, dest any) error {
+// ConfigPayload 用于前后端一次性交互的“大包”结构
+type ConfigPayload struct {
+	Students []string `json:"students"`
+	Arsenal  []Book   `json:"arsenal"`
+}
+
+// ================== 2. 文件读写工具函数 ==================
+
+// loadJSON 读取文件并解析到结构体
+func loadJSON(filepath string, dest interface{}) error {
 	bytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return err
@@ -36,69 +40,90 @@ func loadJSON(filepath string, dest any) error {
 	return json.Unmarshal(bytes, dest)
 }
 
-// ================== 第 3 步：API 接口搭建 ==================
+// saveJSON 将结构体格式化为 JSON 并覆写到本地文件
+// 用 MarshalIndent 可以让存下来的 json 文件带有缩进，方便你朋友直接用记事本看
+func saveJSON(filepath string, data interface{}) error {
+	bytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	// 0644 是文件权限（读写权限）
+	return os.WriteFile(filepath, bytes, 0644)
+}
+
+// ================== 3. 核心 API 路由 ==================
 
 func main() {
-	// 1. 初始化 Gin 引擎
 	r := gin.Default()
-
-	// 【老G贴心小插件】：跨域中间件
-	// 为什么加这个？因为后面开发前端时，Vue跑在 5173 端口，Go跑在 8080 端口。
-	// 浏览器会有跨域限制（CORS），加上这段代码，咱们本地联调就畅通无阻了！
 	r.Use(Cors())
 
-	// 2. 注册 /api 路由组
 	api := r.Group("/api")
 	{
-		// 接口 1：获取学生名单 (GET /api/students)
-		api.GET("/students", func(c *gin.Context) {
+		// [接口 1]：拉取统筹室配置数据
+		api.GET("/config", func(c *gin.Context) {
 			var students []string
-			// 每次请求都去读一次文件
+			var arsenal []Book
+
+			// 分别读取两个文件（如果有报错，可能是文件不存在或格式错，先给个空数组）
 			if err := loadJSON("data/students.json", &students); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "读取学生名单失败: " + err.Error()})
-				return
+				students = []string{}
 			}
-			// 成功返回
-			c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": students})
+			// 注意：这里我们把读取古诗的文件也当做 arsenal 的存储目标
+			if err := loadJSON("data/poems.json", &arsenal); err != nil {
+				arsenal = []Book{}
+			}
+
+			// 组装成大包返回给前端
+			c.JSON(http.StatusOK, gin.H{
+				"code": 200,
+				"msg":  "作战数据读取成功！",
+				"data": ConfigPayload{
+					Students: students,
+					Arsenal:  arsenal,
+				},
+			})
 		})
 
-		// 接口 2：获取古诗数据 (GET /api/poems)
-		api.GET("/poems", func(c *gin.Context) {
-			var poems []Poem
-			// 每次请求都去读一次文件
-			if err := loadJSON("data/poems.json", &poems); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "读取古诗数据失败: " + err.Error()})
+		// [接口 2]：保存统筹室配置数据（覆盖写入）
+		api.POST("/config", func(c *gin.Context) {
+			var payload ConfigPayload
+
+			// 1. 接收前端传过来的 JSON 数据
+			if err := c.ShouldBindJSON(&payload); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "接收数据失败，格式不对啊喂！"})
 				return
 			}
-			// 成功返回
-			c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": poems})
+
+			// 2. 将数据拆分，分别覆写到本地文件
+			err1 := saveJSON("data/students.json", payload.Students)
+			err2 := saveJSON("data/poems.json", payload.Arsenal)
+
+			if err1 != nil || err2 != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "覆写本地文件失败，检查下权限！"})
+				return
+			}
+
+			// 3. 成功响应
+			c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "轰隆隆！目标与弹药覆写完毕！"})
 		})
 	}
 
-	// 将打包好的前端文件（dist）设为静态目录
-	r.Static("/assets", "./dist/assets")   // 处理 JS/CSS 等资源
-	r.StaticFile("/", "./dist/index.html") // 处理首页
-
-	// 2. 核心：处理 SPA 路由（前端路由刷新 404 问题）
-	// 如果浏览器访问了一个不存在的路由，统统返回 index.html
-	// 让 Vue Router 接管剩下的逻辑
+	// 静态文件托管与兜底 (保持不变)
+	r.Static("/assets", "./dist/assets")
+	r.StaticFile("/", "./dist/index.html")
 	r.NoRoute(func(c *gin.Context) {
-		//path := c.Request.URL.Path
-		// 如果请求的不是 API，则直接返回 index.html
 		c.File("./dist/index.html")
 	})
 
-	r.Run(":8080") // 监听 8080 端口
+	r.Run(":8080")
 }
 
-// Cors 一个极简的跨域中间件
+// Cors 跨域中间件 (保持不变)
 func Cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*") // 允许所有源
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		// 放行 OPTIONS 预检请求
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
