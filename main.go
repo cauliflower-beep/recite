@@ -1,81 +1,108 @@
 /**
  * @Author: LiuShuXin
- * @Description:
+ * @Description: main file
  * @File:  main
  * Software: Goland
- * @Date: 2026/2/10 16:03
+ * @Date: 2026/3/9 17:46
  */
 
 package main
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
+// ================== 第 2 步：数据模型与读取逻辑 ==================
+
+// Poem 定义古诗的数据结构（字段首字母大写，后面跟上 json 标签，方便解析）
+type Poem struct {
+	Title   string `json:"title"`
+	Author  string `json:"author"`
+	Rarity  string `json:"rarity"`
+	Content string `json:"content"`
+}
+
+// loadJSON 封装一个通用的读取文件并解析JSON的函数
+// 每次调用它，都会去读最新的文件，这就是我们说的“热更新”魔法！
+func loadJSON(filepath string, dest any) error {
+	bytes, err := os.ReadFile(filepath)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, dest)
+}
+
+// ================== 第 3 步：API 接口搭建 ==================
+
 func main() {
-	// 1. 创建 Gin 实例
-	// set release mode for production
-	gin.SetMode(gin.ReleaseMode)
+	// 1. 初始化 Gin 引擎
 	r := gin.Default()
 
-	// 2. 加载 templates 目录下的所有 HTML 文件
-	// 这样 Gin 就会认识这些文件，后续可以直接渲染
-	r.LoadHTMLGlob("templates/*")
+	// 【老G贴心小插件】：跨域中间件
+	// 为什么加这个？因为后面开发前端时，Vue跑在 5173 端口，Go跑在 8080 端口。
+	// 浏览器会有跨域限制（CORS），加上这段代码，咱们本地联调就畅通无阻了！
+	r.Use(Cors())
 
-	// --- 路由配置 ---
+	// 2. 注册 /api 路由组
+	api := r.Group("/api")
+	{
+		// 接口 1：获取学生名单 (GET /api/students)
+		api.GET("/students", func(c *gin.Context) {
+			var students []string
+			// 每次请求都去读一次文件
+			if err := loadJSON("data/students.json", &students); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "读取学生名单失败: " + err.Error()})
+				return
+			}
+			// 成功返回
+			c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": students})
+		})
 
-	// 首页：做一个简单的导航列表，方便点击
-	r.GET("/", func(c *gin.Context) {
-		htmlContent := `
-		<html>
-		<head>
-			<meta charset="utf-8">
-			<title>诗词抽查 - 预览版</title>
-			<style>
-				body { font-family: sans-serif; padding: 50px; text-align: center; background: #f0f2f5; }
-				h1 { color: #333; }
-				.link-box { margin-top: 30px; }
-				a { 
-					display: inline-block; 
-					margin: 10px; 
-					padding: 15px 30px; 
-					background: #007bff; 
-					color: white; 
-					text-decoration: none; 
-					border-radius: 8px; 
-					font-size: 18px;
-					transition: 0.3s;
-				}
-				a:hover { background: #0056b3; transform: scale(1.05); }
-			</style>
-		</head>
-		<body>
-			<h1>🎒 诗词抽背 - 预览版</h1>
-			<p>请点击下方按钮预览不同风格的版本：</p>
-			<div class="link-box">
-				<a href="/v1" target="_blank">版本一：v1.html</a>
-				<a href="/v2" target="_blank">版本二：v2.html</a>
-			</div>
-		</body>
-		</html>
-		`
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(htmlContent))
+		// 接口 2：获取古诗数据 (GET /api/poems)
+		api.GET("/poems", func(c *gin.Context) {
+			var poems []Poem
+			// 每次请求都去读一次文件
+			if err := loadJSON("data/poems.json", &poems); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "读取古诗数据失败: " + err.Error()})
+				return
+			}
+			// 成功返回
+			c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": poems})
+		})
+	}
+
+	// 将打包好的前端文件（dist）设为静态目录
+	r.Static("/assets", "./dist/assets")   // 处理 JS/CSS 等资源
+	r.StaticFile("/", "./dist/index.html") // 处理首页
+
+	// 2. 核心：处理 SPA 路由（前端路由刷新 404 问题）
+	// 如果浏览器访问了一个不存在的路由，统统返回 index.html
+	// 让 Vue Router 接管剩下的逻辑
+	r.NoRoute(func(c *gin.Context) {
+		//path := c.Request.URL.Path
+		// 如果请求的不是 API，则直接返回 index.html
+		c.File("./dist/index.html")
 	})
 
-	// 版本 1 的路由
-	r.GET("/v1", func(c *gin.Context) {
-		// 这里的 "v1.html" 必须和你 templates 目录下的文件名一致
-		c.HTML(http.StatusOK, "v1.html", nil)
-	})
+	r.Run(":8080") // 监听 8080 端口
+}
 
-	// 版本 2 的路由
-	r.GET("/v2", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "v2.html", nil)
-	})
+// Cors 一个极简的跨域中间件
+func Cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*") // 允许所有源
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	// 3. 启动服务，监听 8080 端口
-	// 如果你的阿里云有其他服务占用了 8080，可以改成 8090 或其他
-	r.Run(":8888")
+		// 放行 OPTIONS 预检请求
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	}
 }
