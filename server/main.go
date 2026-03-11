@@ -54,8 +54,20 @@ func saveJSON(filepath string, data interface{}) error {
 // ================== 3. 核心 API 路由 ==================
 
 func main() {
+	// 切换到生产模式
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
+
+	// 消除警告：告诉 Gin 不存在代理，直接取远程 IP 即可
+	r.SetTrustedProxies(nil)
+
 	r.Use(Cors())
+
+	// 限制请求体大小为 1MB
+	r.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1024*1024)
+		c.Next()
+	})
 
 	api := r.Group("/api")
 	{
@@ -115,7 +127,7 @@ func main() {
 		c.File("./dist/index.html")
 	})
 
-	r.Run(":8080")
+	r.Run(":9527")
 }
 
 // Cors 跨域中间件 (保持不变)
