@@ -1,0 +1,29 @@
+:root {
+  --manga-black: #1a1a1a;
+  --manga-white: #ffffff;
+  --manga-yellow: #FFD700;
+  --manga-red: #FF2A55;
+  --manga-blue: #00E5FF;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  /* 漫画网点纸背景 */
+  background-color: #f0f0f0;
+  background-image: radial-gradient(var(--manga-black) 10%, transparent 11%), 
+                    radial-gradient(var(--manga-black) 10%, transparent 11%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+  font-family: 'ZCOOL KuaiLe', 'Microsoft YaHei', sans-serif;
+  
+  /* 让内容居中 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* 隐藏滚动条但保持可滚动(为了更美观) */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: var(--manga-black); }
