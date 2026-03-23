@@ -16,12 +16,12 @@
         <button 
           class="nav-btn left" 
           :disabled="poemScroll.isAtStart" 
-          @click="scrollList('poem', -400)"
+          @click="scrollList('poem', -200)"
         > ◀ </button>
         <button 
           class="nav-btn right" 
           :disabled="poemScroll.isAtEnd" 
-          @click="scrollList('poem', 400)"
+          @click="scrollList('poem', 200)"
         > ▶ </button>
 
         <div class="scroll-viewport" ref="poemRef" @scroll="updateScrollState('poem')">
@@ -45,12 +45,12 @@
         <button 
           class="nav-btn left" 
           :disabled="studentScroll.isAtStart" 
-          @click="scrollList('student', -400)"
+          @click="scrollList('student', -200)"
         > ◀ </button>
         <button 
           class="nav-btn right" 
           :disabled="studentScroll.isAtEnd" 
-          @click="scrollList('student', 400)"
+          @click="scrollList('student', 200)"
         > ▶ </button>
 
         <div class="scroll-viewport" ref="studentRef" @scroll="updateScrollState('student')">

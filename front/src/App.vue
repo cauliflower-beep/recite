@@ -35,7 +35,11 @@ const passSlogans = [
   "这等咒语也想难倒我？",
   "毫无破绽的绝对领域！",
   "神级背诵，全场膜拜！",
-  "这种程度，不过是热身罢了！"
+  "这种程度，不过是热身罢了！",
+  "这就是...羁绊（知识）的力量！",
+  "记忆宫殿已完全解锁，满分通关！",
+  "区区课文，拿下！",
+  "天选之子，背得漂亮！"
 ];
 
 const failSlogans = [
@@ -44,7 +48,15 @@ const failSlogans = [
   "大脑内存已清空...",
   "吟唱中断，魔法反噬！",
   "连这种常识都忘了？太逊了！",
-  "被自己的结界困住了吗？"
+  "被自己的结界困住了吗？",
+  "你的记忆力被封印了吗？",
+  "CPU温度过高，请求重启！",
+  "这可是送分题啊，我的朋友！",
+  "快醒醒，现在不是在梦境里！",
+  "技能冷却中...请回炉重造！",
+  "语文老师的死亡凝视，你感受到了吗？",
+  "难道...你中了遗忘魔咒？",
+  "不会吧不会吧，真有人背不出来？"
 ];
 
 const triggerFeedback = (type: 'PASS' | 'FAIL') => {
@@ -66,29 +78,97 @@ const triggerFeedback = (type: 'PASS' | 'FAIL') => {
   }, 1500);
 };
 
-// --- 音效资源初始化 ---
-// 由于 freesound 等外链容易被浏览器拦截或失效，这里换用一套更稳定的、来自维基媒体及常用公开图床/CDN的提示音效
-const audioContext = {
-  roll: new Audio('https://upload.wikimedia.org/wikipedia/commons/3/3d/Tick_tock.ogg'),        // 经典的滴答滴答声，稳定且清脆
-  lock: new Audio('https://upload.wikimedia.org/wikipedia/commons/b/bd/Camera_click.ogg'),     // 相机快门般的清脆锁定声
-  pass: new Audio('https://upload.wikimedia.org/wikipedia/commons/e/ec/Success_1.wav'),        // 经典的成功提示音
-  fail: new Audio('https://upload.wikimedia.org/wikipedia/commons/1/15/Buzzer.ogg'),           // 刺耳的错误蜂鸣声
-  smash: new Audio('https://upload.wikimedia.org/wikipedia/commons/d/d4/Drum_snare_hit.ogg'),  // 沉重的鼓击声（模拟砸印章）
+type SoundType = 'roll' | 'lock' | 'pass' | 'fail' | 'smash' | 'ui';
+
+let webAudioCtx: AudioContext | null = null;
+let rollTimer: number | null = null;
+let lastSelectionSfxAt = 0;
+
+const ensureAudioContext = () => {
+  if (webAudioCtx) return webAudioCtx;
+  const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  webAudioCtx = new Ctx();
+  return webAudioCtx;
 };
 
-// 预加载设置并调低一些音量防炸麦
-Object.values(audioContext).forEach(audio => {
-  audio.volume = 0.5;
-  audio.preload = 'auto';
-});
-// 恢复滚动音量，因为这次的木琴音效本身比较轻柔
-audioContext.roll.volume = 0.6;
+const unlockAudio = async () => {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') {
+    await ctx.resume();
+  }
+};
 
-// 播放工具函数
-const playSound = (type: keyof typeof audioContext) => {
-  const audio = audioContext[type];
-  audio.currentTime = 0;
-  audio.play().catch(e => console.log('浏览器限制自动播放，需用户先交互:', e));
+const playTone = (frequency: number, durationMs: number, type: OscillatorType, volume: number, delayMs = 0) => {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  const startAt = ctx.currentTime + delayMs / 1000;
+  const durationSec = durationMs / 1000;
+
+  const oscillator = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, startAt);
+  gainNode.gain.setValueAtTime(0.0001, startAt);
+  gainNode.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0001), startAt + 0.01);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSec);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  oscillator.start(startAt);
+  oscillator.stop(startAt + durationSec);
+};
+
+const startRollSound = () => {
+  if (rollTimer !== null) return;
+  rollTimer = window.setInterval(() => {
+    playTone(1000, 45, 'square', 0.05);
+  }, 70);
+};
+
+const stopRollSound = () => {
+  if (rollTimer === null) return;
+  window.clearInterval(rollTimer);
+  rollTimer = null;
+};
+
+const handleSelectionCountInput = () => {
+  if (gameState.value !== 'IDLE') return;
+  const now = performance.now();
+  if (now - lastSelectionSfxAt < 40) return;
+  lastSelectionSfxAt = now;
+  playSound('ui');
+};
+
+const playSound = async (type: SoundType) => {
+  await unlockAudio();
+  switch (type) {
+    case 'roll':
+      startRollSound();
+      break;
+    case 'lock':
+      playTone(1500, 70, 'triangle', 0.08);
+      playTone(900, 50, 'triangle', 0.05, 25);
+      break;
+    case 'pass':
+      playTone(659, 70, 'triangle', 0.05);
+      playTone(880, 120, 'triangle', 0.08, 70);
+      playTone(1175, 180, 'sine', 0.1, 190);
+      break;
+    case 'fail':
+      playTone(392, 120, 'sawtooth', 0.07);
+      playTone(311, 130, 'sawtooth', 0.07, 100);
+      playTone(262, 180, 'sawtooth', 0.08, 200);
+      break;
+    case 'smash':
+      playTone(180, 120, 'square', 0.09);
+      playTone(120, 180, 'square', 0.07, 45);
+      break;
+    case 'ui':
+      playTone(1200, 45, 'triangle', 0.05);
+      break;
+  }
 };
 
 const students = ref<string[]>([]);
@@ -141,8 +221,6 @@ const startBatchRoll = async () => {
     
     // 开始滚动时播放循环音效
     playSound('roll');
-    // 让滚动音效循环播放
-    audioContext.roll.loop = true;
     
     const currentMission = reactive<Mission>({
       student: '???',
@@ -174,15 +252,14 @@ const startBatchRoll = async () => {
     }
     
     // 停止滚动音效
-    audioContext.roll.pause();
-    audioContext.roll.currentTime = 0;
+    stopRollSound();
     
     // 锁定最终结果并加入去重集合，播放锁定音效
     usedStudents.add(currentMission.student);
     usedPoems.add(currentMission.poem);
     playSound('lock');
     
-    await sleep(300); // 定格停顿感稍微加长一点配合音效
+    await sleep(800); // 定格停顿1秒，给被抽到的同学反应时间
   }
 
   // 3. 抽选完成，重置焦点到第一位，进入背诵环节
@@ -218,7 +295,16 @@ const resetGame = () => {
 
 // --- 生命周期 ---
 onMounted(() => {
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
   loadData();
+});
+
+onUnmounted(() => {
+  stopRollSound();
+  document.removeEventListener('pointerdown', unlockAudio);
+  if (webAudioCtx && webAudioCtx.state !== 'closed') {
+    webAudioCtx.close();
+  }
 });
 </script>
 
@@ -229,7 +315,7 @@ onMounted(() => {
       <div class="top-bar">
         <div class="count-selector" v-if="gameState === 'IDLE'">
             <span class="label">作战人数:</span>
-            <input type="range" min="1" max="10" v-model.number="selectionCount">
+            <input type="range" min="1" max="10" v-model.number="selectionCount" @input="handleSelectionCountInput">
             <span class="value">{{ selectionCount }}</span>
         </div>
         <button class="btn-config" @click="showConfig = true" :disabled="gameState === 'ROLLING'">
@@ -392,7 +478,7 @@ onMounted(() => {
         </div>
         
         <button class="btn-radical-return" @click="resetGame">
-          <span>RESTART // 再次开战</span>
+          <span>撤退！！！</span>
         </button>
       </div>
     </div>
@@ -487,7 +573,7 @@ onMounted(() => {
 .panel-tag {
   position: absolute; top: -20px; left: 30px;
   background: #000; color: var(--manga-yellow);
-  padding: 4px 20px; font-weight: 900; font-size: 16px; z-index: 10;
+  padding: 4px 20px; font-weight: 900; font-size: 18px; z-index: 10;
 }
 
 .log-tag { left: auto; right: 30px; background: var(--manga-red); color: #fff; }
@@ -633,7 +719,7 @@ onMounted(() => {
 
 /* 右侧日志区 */
 .mission-log {
-  flex: 0 0 400px;
+  flex: 0 0 500px;
   background: #fafafa;
   background-image: repeating-linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), repeating-linear-gradient(45deg, #f0f0f0 25%, #fafafa 25%, #fafafa 75%, #f0f0f0 75%, #f0f0f0);
   background-position: 0 0, 10px 10px;
@@ -683,7 +769,7 @@ onMounted(() => {
 
 .progress-text {
   font-family: "Impact", "Arial Black", sans-serif;
-  font-size: 24px;
+  font-size: 28px;
   font-style: italic;
   font-weight: 900;
   color: var(--manga-yellow);
@@ -733,7 +819,7 @@ onMounted(() => {
 
 /* 序号标牌设计 */
 .log-idx-wrapper {
-    position: relative; width: 50px; height: 50px;
+    position: relative; width: 60px; height: 60px;
     display: flex; justify-content: center; align-items: center;
     transform: rotate(-5deg);
 }
@@ -743,25 +829,25 @@ onMounted(() => {
 }
 .is-active .log-idx-bg { background: var(--manga-red); }
 .log-idx {
-    position: relative; z-index: 1; font-weight: 900; font-size: 16px;
+    position: relative; z-index: 1; font-weight: 900; font-size: 18px;
     color: #000; text-shadow: 1px 1px 0 #fff;
 }
-.is-active .log-idx { color: #fff; text-shadow: 2px 2px 0 #000; font-size: 18px; }
+.is-active .log-idx { color: #fff; text-shadow: 2px 2px 0 #000; font-size: 20px; }
 
 .log-body { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.log-name { font-size: 24px; font-weight: 900; letter-spacing: 1px; }
+.log-name { font-size: 28px; font-weight: 900; letter-spacing: 1px; }
 .log-poem { display: flex; align-items: baseline; gap: 5px; }
-.poem-title { font-size: 16px; font-weight: bold; color: #333; }
-.poem-author { font-size: 12px; color: #888; background: #eee; padding: 2px 6px; border-radius: 4px; font-style: italic; }
+.poem-title { font-size: 20px; font-weight: bold; color: #333; }
+.poem-author { font-size: 14px; color: #888; background: #eee; padding: 2px 6px; border-radius: 4px; font-style: italic; }
 
 /* 状态印章设计 */
 .log-status-stamp {
-    width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;
-    font-weight: 900; font-style: italic; font-size: 16px;
+    width: 70px; height: 70px; display: flex; justify-content: center; align-items: center;
+    font-weight: 900; font-style: italic; font-size: 18px;
     border: 3px solid #ccc; color: #ccc; border-radius: 50%;
     transform: rotate(10deg); opacity: 0.5;
 }
-.stamp-inner { border: 1px solid currentColor; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+.stamp-inner { border: 1px solid currentColor; border-radius: 50%; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; }
 
 .PASS .log-status-stamp { 
     color: #059669; border-color: #059669; opacity: 1; transform: rotate(-5deg) scale(1.1);
