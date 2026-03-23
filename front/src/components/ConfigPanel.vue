@@ -8,38 +8,9 @@
 
     <!-- 2. 核心区：两栏布局 -->
     <div class="panel-body">
-      <!-- A. 学生分镜 -->
+      <!-- A. 篇目分镜 (Arsenal) -->
       <div class="comic-frame">
-        <div class="frame-title">A. 目标锁定 (Targets)</div>
-        
-        <!-- 导航箭头 -->
-        <button 
-          class="nav-btn left" 
-          :disabled="studentScroll.isAtStart" 
-          @click="scrollList('student', -400)"
-        > ◀ </button>
-        <button 
-          class="nav-btn right" 
-          :disabled="studentScroll.isAtEnd" 
-          @click="scrollList('student', 400)"
-        > ▶ </button>
-
-        <div class="scroll-viewport" ref="studentRef" @scroll="updateScrollState('student')">
-          <div class="tag-list">
-            <ActionTag 
-              v-for="(student, index) in students" 
-              :key="'s-'+index" 
-              :text="student" 
-              @delete="removeStudent(index)" 
-            />
-            <ActionTag text="+ 增加目标" :isAdd="true" @click="openStudentDialog" />
-          </div>
-        </div>
-      </div>
-
-      <!-- B. 篇目分镜 -->
-      <div class="comic-frame">
-        <div class="frame-title" style="background: var(--manga-blue);">B. 弹药装填 (Arsenal)</div>
+        <div class="frame-title" style="background: var(--manga-blue);">A. 弹药装填 (Arsenal)</div>
         
         <!-- 导航箭头 -->
         <button 
@@ -62,6 +33,35 @@
               @delete="removePoem(index)" 
             />
             <ActionTag text="+ 增加篇目" :isAdd="true" @click="openPoemDialog" />
+          </div>
+        </div>
+      </div>
+
+      <!-- B. 学生分镜 (Targets) -->
+      <div class="comic-frame">
+        <div class="frame-title">B. 目标锁定 (Targets)</div>
+        
+        <!-- 导航箭头 -->
+        <button 
+          class="nav-btn left" 
+          :disabled="studentScroll.isAtStart" 
+          @click="scrollList('student', -400)"
+        > ◀ </button>
+        <button 
+          class="nav-btn right" 
+          :disabled="studentScroll.isAtEnd" 
+          @click="scrollList('student', 400)"
+        > ▶ </button>
+
+        <div class="scroll-viewport" ref="studentRef" @scroll="updateScrollState('student')">
+          <div class="tag-list">
+            <ActionTag 
+              v-for="(student, index) in students" 
+              :key="'s-'+index" 
+              :text="student" 
+              @delete="removeStudent(index)" 
+            />
+            <ActionTag text="+ 增加目标" :isAdd="true" @click="openStudentDialog" />
           </div>
         </div>
       </div>

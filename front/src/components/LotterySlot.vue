@@ -34,7 +34,7 @@ defineProps<{
     <div class="slot-content">
       <div class="slot-label">{{ label }}</div>
       <div class="text-wrapper">
-        <div v-if="subtext" class="book-tag">《{{ subtext }}》</div>
+        <div v-if="subtext" class="book-tag">{{ subtext }}</div>
         <div class="main-text">{{ text }}</div>
       </div>
     </div>
