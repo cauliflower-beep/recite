@@ -34,8 +34,8 @@ defineProps<{
     <div class="slot-content">
       <div class="slot-label">{{ label }}</div>
       <div class="text-wrapper">
-        <div v-if="subtext" class="book-tag">{{ subtext }}</div>
         <div class="main-text">{{ text }}</div>
+        <div v-if="subtext" class="book-tag">—— {{ subtext }}</div>
       </div>
     </div>
 
@@ -47,14 +47,14 @@ defineProps<{
 <style scoped>
 .slot-container {
   position: relative;
-  width: 520px;
-  height: 320px;
+  width: 800px;
+  height: 280px;
   transition: transform 0.2s;
 }
 
 /* 依旧保持对角线布局 */
-.left { align-self: flex-start; transform: translate(-30px, -20px) rotate(-1deg); }
-.right { align-self: flex-end; transform: translate(30px, 20px) rotate(1deg); }
+.left { align-self: center; transform: translate(-20px, 0) rotate(-1deg); }
+.right { align-self: center; transform: translate(20px, 0) rotate(1deg); }
 
 /* --- 1. 三层影分身设计 --- */
 .shadow-layer {
@@ -67,9 +67,9 @@ defineProps<{
 .layer-2 { transform: translate(24px, 24px); opacity: 0.4; }
 .layer-3 { transform: translate(36px, 36px); opacity: 0.1; }
 
-/* 统一裁剪形状 */
-.left .shadow-layer, .left .manga-bg-frame { clip-path: polygon(0% 15%, 100% 0%, 92% 85%, 8% 100%); }
-.right .shadow-layer, .right .manga-bg-frame { clip-path: polygon(8% 0%, 92% 15%, 100% 85%, 0% 100%); }
+/* 统一裁剪形状 (取消不规则边框) */
+/* .left .shadow-layer, .left .manga-bg-frame { clip-path: polygon(0% 15%, 100% 0%, 92% 85%, 8% 100%); }
+.right .shadow-layer, .right .manga-bg-frame { clip-path: polygon(8% 0%, 92% 15%, 100% 85%, 0% 100%); } */
 
 /* --- 2. 主框体与动态背景 --- */
 .manga-bg-frame {
@@ -120,14 +120,32 @@ defineProps<{
   align-items: center;
 }
 
+.text-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
 .main-text {
-  font-size: 85px;
+  font-size: 75px;
   font-weight: 900;
-  color: var(--manga-yellow);
+  text-align: center;
+  word-break: break-all;
+  padding: 0 20px;
   text-shadow: 
     -4px -4px 0 #000, 4px -4px 0 #000, 
     -4px 4px 0 #000, 4px 4px 0 #000,
     10px 10px 0px rgba(0,0,0,0.3);
+}
+
+.left .main-text {
+  color: var(--manga-blue, #00E5FF);
+}
+
+.right .main-text {
+  color: var(--manga-red, #FF2A55);
 }
 
 .is-rolling .main-text {
@@ -163,12 +181,28 @@ defineProps<{
 }
 
 .book-tag {
-  background: var(--manga-black);
+  align-self: flex-end;
+  margin-right: 80px;
+  margin-top: 10px;
+  font-size: 32px;
+  font-weight: bold;
+  font-style: italic;
+  text-shadow: 
+    -2px -2px 0 #000, 2px -2px 0 #000, 
+    -2px 2px 0 #000, 2px 2px 0 #000,
+    6px 6px 0px rgba(0,0,0,0.3);
+}
+
+.left .book-tag {
+  color: var(--manga-blue, #00E5FF);
+}
+
+.right .book-tag {
+  color: var(--manga-red, #FF2A55);
+}
+
+.is-rolling .book-tag {
   color: #fff;
-  padding: 2px 15px;
-  font-size: 24px;
-  margin-bottom: 5px;
-  transform: skewX(-15deg);
 }
 
 /* --- 动画库 --- */

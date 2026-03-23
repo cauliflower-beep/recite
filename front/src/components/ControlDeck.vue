@@ -49,15 +49,19 @@ defineEmits<{
 
 <style scoped>
 .control-deck {
-  height: 200px;
   display: flex;
-  flex-direction: column;
   justify-content: center;
-  align-items: center;
-  z-index: 100;
+  gap: 30px;
+  z-index: 50;
+  position: relative;
 }
 
 .judgment-zone {
+  display: flex;
+  gap: 40px;
+}
+
+.btn-action {
   display: flex;
   gap: 40px;
   animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);

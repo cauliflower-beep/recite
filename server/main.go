@@ -70,10 +70,10 @@ func main() {
 			var students []string
 			var poems []Poem
 
-			if err := loadJSON("server/data/students.json", &students); err != nil {
+			if err := loadJSON("./data/students.json", &students); err != nil {
 				students = []string{}
 			}
-			if err := loadJSON("server/data/poems.json", &poems); err != nil {
+			if err := loadJSON("./data/poems.json", &poems); err != nil {
 				poems = []Poem{}
 			}
 
@@ -96,8 +96,8 @@ func main() {
 				return
 			}
 
-			err1 := saveJSON("server/data/students.json", payload.Students)
-			err2 := saveJSON("server/data/poems.json", payload.Poems)
+			err1 := saveJSON("./data/students.json", payload.Students)
+			err2 := saveJSON("./data/poems.json", payload.Poems)
 
 			if err1 != nil || err2 != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "覆写本地文件失败，检查下权限！"})
@@ -105,8 +105,8 @@ func main() {
 			}
 
 			c.JSON(http.StatusOK, gin.H{
-				"code": 200, 
-				"msg": "轰隆隆！目标与弹药覆写完毕！",
+				"code": 200,
+				"msg":  "轰隆隆！目标与弹药覆写完毕！",
 			})
 		})
 	}
