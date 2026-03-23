@@ -47,8 +47,10 @@ defineProps<{
 <style scoped>
 .slot-container {
   position: relative;
-  width: 800px;
-  height: 280px;
+  width: 100%;
+  max-width: 800px;
+  /* 使用 clamp 来控制最小和最大高度，保持比例的弹性 */
+  height: clamp(150px, 25vh, 280px);
   transition: transform 0.2s;
 }
 
@@ -66,10 +68,6 @@ defineProps<{
 .layer-1 { transform: translate(12px, 12px); opacity: 1; }
 .layer-2 { transform: translate(24px, 24px); opacity: 0.4; }
 .layer-3 { transform: translate(36px, 36px); opacity: 0.1; }
-
-/* 统一裁剪形状 (取消不规则边框) */
-/* .left .shadow-layer, .left .manga-bg-frame { clip-path: polygon(0% 15%, 100% 0%, 92% 85%, 8% 100%); }
-.right .shadow-layer, .right .manga-bg-frame { clip-path: polygon(8% 0%, 92% 15%, 100% 85%, 0% 100%); } */
 
 /* --- 2. 主框体与动态背景 --- */
 .manga-bg-frame {
@@ -129,7 +127,7 @@ defineProps<{
 }
 
 .main-text {
-  font-size: 75px;
+  font-size: clamp(30px, 6cqw, 75px);
   font-weight: 900;
   text-align: center;
   word-break: break-all;
@@ -182,9 +180,9 @@ defineProps<{
 
 .book-tag {
   align-self: flex-end;
-  margin-right: 80px;
+  margin-right: clamp(20px, 8vw, 80px);
   margin-top: 10px;
-  font-size: 32px;
+  font-size: clamp(16px, 3cqw, 32px);
   font-weight: bold;
   font-style: italic;
   text-shadow: 

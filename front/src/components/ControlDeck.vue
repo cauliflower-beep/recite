@@ -61,17 +61,11 @@ defineEmits<{
   gap: 40px;
 }
 
-.btn-action {
-  display: flex;
-  gap: 40px;
-  animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
 .manga-btn {
   font-family: inherit;
-  font-size: 45px;
+  font-size: clamp(20px, 2.5vw, 45px);
   font-weight: 900;
-  padding: 15px 60px;
+  padding: clamp(10px, 1.5vh, 15px) clamp(20px, 3vw, 60px);
   border: 6px solid #000;
   cursor: pointer;
   transform: skewX(-10deg);
@@ -101,10 +95,5 @@ defineEmits<{
   background: #555; color: #888; border-color: #333;
   box-shadow: 8px 8px 0 #222; cursor: not-allowed;
   transform: skewX(-10deg);
-}
-
-@keyframes popUp {
-  0% { transform: translateY(50px) scale(0.5); opacity: 0; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 </style>

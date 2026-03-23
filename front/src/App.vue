@@ -15,10 +15,6 @@ interface Mission {
 type GameState = 'IDLE' | 'ROLLING' | 'BATTLE' | 'SUMMARY';
 
 // --- 基础配置与响应式状态 ---
-const scale = ref(1);
-const baseWidth = 1920;
-const baseHeight = 1080;
-
 const gameState = ref<GameState>('IDLE');
 const showConfig = ref(false);
 const selectionCount = ref(6); // 默认抽选 6 人
@@ -107,11 +103,6 @@ const missionProgress = computed(() => {
   if (gameState.value === 'SUMMARY') return 100;
   return (activeIdx.value / missionQueue.value.length) * 100;
 });
-
-// --- 窗口缩放逻辑 ---
-const updateScale = () => {
-  scale.value = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
-};
 
 // --- 数据加载 ---
 const loadData = async () => {
@@ -228,25 +219,12 @@ const resetGame = () => {
 // --- 生命周期 ---
 onMounted(() => {
   loadData();
-  updateScale();
-  window.addEventListener('resize', updateScale);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', updateScale);
 });
 </script>
 
 <template>
   <div class="app-container">
-    <div 
-      class="main-scaler" 
-      :style="{ 
-        transform: `scale(${scale})`, 
-        width: `${baseWidth}px`, 
-        height: `${baseHeight}px` 
-      }"
-    >
+    <div class="main-layout">
       <!-- 顶栏：配置与人数设置 -->
       <div class="top-bar">
         <div class="count-selector" v-if="gameState === 'IDLE'">
@@ -430,19 +408,21 @@ onUnmounted(() => {
                     radial-gradient(rgba(0,0,0,0.15) 15%, transparent 16%);
   background-size: 15px 15px;
   background-position: 0 0, 7.5px 7.5px;
-  display: flex; justify-content: center; align-items: center;
+  display: flex; 
+  flex-direction: column;
 }
 
-.main-scaler {
-  position: relative; flex-shrink: 0;
+.main-layout {
+  flex: 1;
   display: flex; flex-direction: column;
-  transform-origin: center center;
   background: transparent;
+  width: 100%;
+  height: 100%;
 }
 
 .top-bar { 
-  height: 100px; display: flex; justify-content: flex-end; align-items: center; 
-  padding: 0 60px; z-index: 10; gap: 30px;
+  height: 80px; display: flex; justify-content: flex-end; align-items: center; 
+  padding: 0 40px; z-index: 10; gap: 20px;
 }
 
 .count-selector {
@@ -494,7 +474,7 @@ onUnmounted(() => {
 .btn-config:hover { background: var(--manga-yellow); transform: scale(1.05); }
 
 .battle-arena {
-  flex: 1; display: flex; gap: 40px; padding: 30px 60px; z-index: 5;
+  flex: 1; display: flex; gap: 2vw; padding: 2vh 4vw; z-index: 5;
   overflow: hidden; /* 防止内部元素撑破容器 */
 }
 
@@ -514,8 +494,10 @@ onUnmounted(() => {
 
 /* 左侧主显示区 */
 .display-main {
-  flex: 2.2; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1 1 auto; 
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   position: relative;
+  min-width: 0;
 }
 
 .control-deck-wrapper {
@@ -626,7 +608,9 @@ onUnmounted(() => {
 }
 
 .focus-container {
-    width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-around;
+    width: 100%; 
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 20px;
     animation: slideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -649,7 +633,8 @@ onUnmounted(() => {
 
 /* 右侧日志区 */
 .mission-log {
-  flex: 1; background: #fafafa;
+  flex: 0 0 400px;
+  background: #fafafa;
   background-image: repeating-linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), repeating-linear-gradient(45deg, #f0f0f0 25%, #fafafa 25%, #fafafa 75%, #f0f0f0 75%, #f0f0f0);
   background-position: 0 0, 10px 10px;
   background-size: 20px 20px;
@@ -1155,5 +1140,53 @@ onUnmounted(() => {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0, 0, 0, 0.05); backdrop-filter: blur(10px);
   display: flex; justify-content: center; align-items: center; z-index: 9999;
+}
+
+@media (max-width: 1024px) {
+  .battle-arena {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  
+  .display-main {
+    flex: 0 0 auto;
+    min-height: 50vh;
+  }
+
+  .mission-log {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .arena-divider {
+    flex-direction: row;
+    width: 100%;
+    height: 40px;
+  }
+
+  .divider-line {
+    height: 6px;
+    width: 100%;
+    background: repeating-linear-gradient(
+      90deg,
+      #000,
+      #000 15px,
+      transparent 15px,
+      transparent 30px
+    );
+  }
+
+  .divider-line::after {
+    top: 10px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+  }
+
+  .divider-text {
+    writing-mode: horizontal-tb;
+    padding: 5px 20px;
+    letter-spacing: 5px;
+  }
 }
 </style>
