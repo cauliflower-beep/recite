@@ -1,12 +1,12 @@
 <template>
   <div class="manga-panel">
-    <!-- 1. 固定头部：绝对不会移动 -->
+    <!-- 1. 固定头部 -->
     <div class="panel-header">
       <span>⚙️ SYSTEM CONFIG / 作战统筹</span>
       <span class="close-btn" @click="$emit('close')">[X] 退出</span>
     </div>
 
-    <!-- 2. 核心滚动区：内容再多也不怕 -->
+    <!-- 2. 核心滚动区 -->
     <div class="panel-scroll-area">
       <div class="panel-body">
         <!-- 左侧分镜：学生 -->
@@ -15,7 +15,7 @@
           <div class="tag-list">
             <ActionTag 
               v-for="(student, index) in students" 
-              :key="index" 
+              :key="'s-'+index" 
               :text="student" 
               @delete="removeStudent(index)" 
             />
@@ -23,45 +23,30 @@
           </div>
         </div>
 
-        <!-- 右侧分镜：教材篇目 -->
+        <!-- 右侧分镜：篇目 -->
         <div class="comic-frame">
           <div class="frame-title" style="background: var(--manga-blue);">B. 弹药装填 (Arsenal)</div>
-          <div class="book-group" v-for="(book, bIndex) in arsenal" :key="bIndex">
-            <div class="book-header">
-              <div class="book-title">《{{ book.title }}》</div>
-              <button class="delete-book-btn" @click="openDeleteBookDialog(bIndex)">🗑️ 销毁</button>
-            </div>
-            <div class="tag-list" style="margin-top: 10px;">
-              <ActionTag 
-                v-for="(poem, pIndex) in book.poems" 
-                :key="pIndex" 
-                :text="poem" 
-                @delete="removePoem(bIndex, pIndex)" 
-              />
-              <ActionTag text="+ 增加篇目" :isAdd="true" @click="openPoemDialog(bIndex)" />
-            </div>
-          </div>
-          <!-- 增加教材 -->
-          <div style="margin-top: 30px; text-align: center;">
+          <div class="tag-list">
             <ActionTag 
-              text="+ 录入新教材卷宗" 
-              :isAdd="true" 
-              style="width: 80%; display: block; margin: 0 auto;" 
-              @click="openBookDialog" 
+              v-for="(poem, index) in poems" 
+              :key="'p-'+index" 
+              :text="`《${poem.title}》- ${poem.author}`" 
+              @delete="removePoem(index)" 
             />
+            <ActionTag text="+ 增加篇目" :isAdd="true" @click="openPoemDialog" />
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 3. 固定底部：保存按钮永远在手边 -->
+    <!-- 3. 固定底部 -->
     <div class="panel-footer">
       <button class="btn-save" @click="saveConfig" :disabled="isSaving">
         {{ isSaving ? '⏳ 正在写入神经元...' : '💥 确认覆写 (SAVE)' }}
       </button>
     </div>
 
-    <!-- 漫画风弹窗 (录入/确认/信息) -->
+    <!-- 漫画风弹窗 -->
     <MangaDialog
       v-model:visible="dialog.show"
       :type="dialog.type"
@@ -77,14 +62,13 @@ import { ref, onMounted, reactive } from 'vue';
 import ActionTag from './ActionTag.vue';
 import MangaDialog from './MangaDialog.vue';
 
-interface Book { title: string; poems: string[]; }
+interface Poem { title: string; author: string; }
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void; }>();
 
 const students = ref<string[]>([]);
-const arsenal = ref<Book[]>([]);
+const poems = ref<Poem[]>([]);
 const isSaving = ref(false);
 
-// --- 弹窗逻辑控制 ---
 const dialog = reactive({
   show: false,
   type: 'input' as 'input' | 'confirm' | 'info',
@@ -109,14 +93,13 @@ const handleDialogConfirm = (payload?: string) => {
   }
 };
 
-// --- API 交互 ---
 const fetchConfig = async () => {
   try {
     const res = await fetch('/api/config');
     const json = await res.json();
     if (json.code === 200) {
       students.value = json.data.students || [];
-      arsenal.value = json.data.arsenal || [];
+      poems.value = json.data.poems || [];
     }
   } catch (e) { console.error(e); }
 };
@@ -127,11 +110,11 @@ const saveConfig = async () => {
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ students: students.value, arsenal: arsenal.value })
+      body: JSON.stringify({ students: students.value, poems: poems.value })
     });
     const json = await res.json();
     if (json.code === 200) {
-      summonDialog('info', '🛰️ 同步成功', '作战数据库覆写完成！所有情报已安全存入核心服务器。', () => {
+      summonDialog('info', '🛰️ 同步成功', '作战数据库覆写完成！', () => {
         emit('saved');
         emit('close');
       });
@@ -143,44 +126,36 @@ const saveConfig = async () => {
 
 onMounted(() => fetchConfig());
 
-// --- 增删逻辑 ---
 const openStudentDialog = () => {
   summonDialog('input', '🎯 录入新目标', '输入学生姓名...', (n) => n && students.value.push(n));
 };
 const removeStudent = (i: number) => students.value.splice(i, 1);
 
-const openPoemDialog = (bi: number) => {
-  const book = arsenal.value[bi];
-  if (book) {
-    summonDialog('input', `📜 填装篇目`, '输入古诗篇目...', (p) => p && book.poems.push(p));
-  }
+const openPoemDialog = () => {
+  summonDialog('input', '📜 填装篇目', '格式: 《篇目》-作者 (例: 《短歌行》-曹操)', (p) => {
+    if (!p) return;
+    const parts = p.split(/[-—]/);
+    if (parts.length >= 2) {
+      const title = parts[0].replace(/[《》]/g, '').trim();
+      const author = parts[1].trim();
+      poems.value.push({ title, author });
+    } else {
+      // 如果没按格式填，至少把输入的当标题
+      poems.value.push({ title: p.trim(), author: '佚名' });
+    }
+  });
 };
-const removePoem = (bi: number, pi: number) => {
-  const book = arsenal.value[bi];
-  if (book && book.poems) {
-    book.poems.splice(pi, 1);
-  }
-};
-
-const openBookDialog = () => {
-  summonDialog('input', '📚 创建新卷宗', '输入教材名称...', (t) => t && arsenal.value.push({ title: t, poems: [] }));
-};
-const openDeleteBookDialog = (i: number) => {
-  const book = arsenal.value[i];
-  if (book) {
-    summonDialog('confirm', `🔥 确认抹杀?`, `即将销毁《${book.title}》`, () => arsenal.value.splice(i, 1));
-  }
-};
+const removePoem = (i: number) => poems.value.splice(i, 1);
 </script>
 
 <style scoped>
-/* --- 布局核心：固定头尾，中间滚动 --- */
+/* 样式保持不变，但移除了 book-group 相关 */
 .manga-panel {
   background: var(--manga-white);
   border: 5px solid var(--manga-black);
   box-shadow: 12px 12px 0px var(--manga-black);
   width: 950px;
-  max-height: 85vh; /* 限制面板总高度 */
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   transform: rotate(-0.5deg);
@@ -209,12 +184,10 @@ const openDeleteBookDialog = (i: number) => {
 .close-btn { cursor: pointer; transition: color 0.2s; }
 .close-btn:hover { color: var(--manga-red); }
 
-/* --- 滚动区域美化 --- */
 .panel-scroll-area {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  /* 粗黑漫画风滚动条 */
   scrollbar-width: thick;
   scrollbar-color: var(--manga-black) #eee;
 }
@@ -227,14 +200,14 @@ const openDeleteBookDialog = (i: number) => {
 .comic-frame {
   flex: 1;
   border: 3px dashed var(--manga-black);
-  padding: 40px 15px 15px; /* 增加顶部 padding 给 sticky 标题留位 */
+  padding: 40px 15px 15px;
   position: relative;
   background: #fff;
   min-height: 200px;
 }
 
 .frame-title {
-  position: absolute; /* 这里用 absolute 配合滚动区就足够了 */
+  position: absolute;
   top: 10px; left: 10px;
   background: var(--manga-yellow);
   border: 3px solid var(--manga-black);
@@ -246,15 +219,6 @@ const openDeleteBookDialog = (i: number) => {
 }
 
 .tag-list { display: flex; flex-wrap: wrap; gap: 10px; }
-
-.book-group {
-  margin-top: 30px;
-  border-left: 5px solid var(--manga-black);
-  padding-left: 15px;
-}
-.book-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.book-title { font-size: 20px; background: var(--manga-black); color: white; padding: 2px 8px; transform: skewX(-10deg); }
-.delete-book-btn { background: transparent; border: none; color: var(--manga-red); cursor: pointer; text-decoration: underline; font-family: inherit; }
 
 .panel-footer {
   flex-shrink: 0;

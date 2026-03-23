@@ -32,14 +32,14 @@ const resetGame = () => {
   settlement.show = false;
   gameState.value = 'IDLE';
   currentStudent.value = '???';
-  currentBook.value = '未知';
+  currentAuthor.value = '未知';
   currentPoem.value = '???';
 };
 
 const students = ref<string[]>([]);
-const arsenal = ref<any[]>([]);
+const poems = ref<{ title: string; author: string }[]>([]);
 const currentStudent = ref('???');
-const currentBook = ref('未知');
+const currentAuthor = ref('未知');
 const currentPoem = ref('???');
 
 const loadData = async () => {
@@ -48,7 +48,7 @@ const loadData = async () => {
     const json = await res.json();
     if (json.code === 200) {
       students.value = json.data.students || [];
-      arsenal.value = json.data.arsenal || [];
+      poems.value = json.data.poems || [];
     }
   } catch (e) {
     console.error("数据加载失败");
@@ -57,18 +57,17 @@ const loadData = async () => {
 
 let rollInterval: any = null;
 const startRoll = () => {
-  const flatMissions = arsenal.value.flatMap(b => b.poems.map((p: string) => ({ b: b.title, p })));
-  if (!students.value.length || !flatMissions.length) return alert("配置库空虚！请先录入情报！");
+  if (!students.value.length || !poems.value.length) return alert("配置库空虚！请先录入情报！");
 
   gameState.value = 'ROLLING';
   rollInterval = setInterval(() => {
     const randomStudent = students.value[Math.floor(Math.random() * students.value.length)];
     if (randomStudent) currentStudent.value = randomStudent;
     
-    const m = flatMissions[Math.floor(Math.random() * flatMissions.length)];
+    const m = poems.value[Math.floor(Math.random() * poems.value.length)];
     if (m) {
-      currentBook.value = m.b;
-      currentPoem.value = m.p;
+      currentAuthor.value = m.author;
+      currentPoem.value = m.title;
     }
   }, 50);
 
@@ -132,7 +131,7 @@ onUnmounted(() => {
         <LotterySlot 
           side="right" 
           label="📜 MISSION / 绝密任务" 
-          :subtext="currentBook"
+          :subtext="currentAuthor"
           :text="currentPoem" 
           :isRolling="gameState === 'ROLLING'" 
         />
