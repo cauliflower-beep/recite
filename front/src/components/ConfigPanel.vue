@@ -6,12 +6,25 @@
       <span class="close-btn" @click="$emit('close')">[X] 退出</span>
     </div>
 
-    <!-- 2. 核心滚动区 -->
-    <div class="panel-scroll-area">
-      <div class="panel-body">
-        <!-- 左侧分镜：学生 -->
-        <div class="comic-frame">
-          <div class="frame-title">A. 目标锁定 (Targets)</div>
+    <!-- 2. 核心区：两栏布局 -->
+    <div class="panel-body">
+      <!-- A. 学生分镜 -->
+      <div class="comic-frame">
+        <div class="frame-title">A. 目标锁定 (Targets)</div>
+        
+        <!-- 导航箭头 -->
+        <button 
+          class="nav-btn left" 
+          :disabled="studentScroll.isAtStart" 
+          @click="scrollList('student', -400)"
+        > ◀ </button>
+        <button 
+          class="nav-btn right" 
+          :disabled="studentScroll.isAtEnd" 
+          @click="scrollList('student', 400)"
+        > ▶ </button>
+
+        <div class="scroll-viewport" ref="studentRef" @scroll="updateScrollState('student')">
           <div class="tag-list">
             <ActionTag 
               v-for="(student, index) in students" 
@@ -22,10 +35,25 @@
             <ActionTag text="+ 增加目标" :isAdd="true" @click="openStudentDialog" />
           </div>
         </div>
+      </div>
 
-        <!-- 右侧分镜：篇目 -->
-        <div class="comic-frame">
-          <div class="frame-title" style="background: var(--manga-blue);">B. 弹药装填 (Arsenal)</div>
+      <!-- B. 篇目分镜 -->
+      <div class="comic-frame">
+        <div class="frame-title" style="background: var(--manga-blue);">B. 弹药装填 (Arsenal)</div>
+        
+        <!-- 导航箭头 -->
+        <button 
+          class="nav-btn left" 
+          :disabled="poemScroll.isAtStart" 
+          @click="scrollList('poem', -400)"
+        > ◀ </button>
+        <button 
+          class="nav-btn right" 
+          :disabled="poemScroll.isAtEnd" 
+          @click="scrollList('poem', 400)"
+        > ▶ </button>
+
+        <div class="scroll-viewport" ref="poemRef" @scroll="updateScrollState('poem')">
           <div class="tag-list">
             <ActionTag 
               v-for="(poem, index) in poems" 
@@ -58,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, nextTick } from 'vue';
 import ActionTag from './ActionTag.vue';
 import MangaDialog from './MangaDialog.vue';
 
@@ -68,6 +96,29 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void; }>();
 const students = ref<string[]>([]);
 const poems = ref<Poem[]>([]);
 const isSaving = ref(false);
+
+// 滚动控制逻辑
+const studentRef = ref<HTMLElement | null>(null);
+const poemRef = ref<HTMLElement | null>(null);
+
+const studentScroll = reactive({ isAtStart: true, isAtEnd: false });
+const poemScroll = reactive({ isAtStart: true, isAtEnd: false });
+
+const updateScrollState = (type: 'student' | 'poem') => {
+  const el = type === 'student' ? studentRef.value : poemRef.value;
+  const state = type === 'student' ? studentScroll : poemScroll;
+  if (!el) return;
+
+  state.isAtStart = el.scrollLeft <= 10;
+  state.isAtEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 10;
+};
+
+const scrollList = (type: 'student' | 'poem', offset: number) => {
+  const el = type === 'student' ? studentRef.value : poemRef.value;
+  if (el) {
+    el.scrollBy({ left: offset, behavior: 'smooth' });
+  }
+};
 
 const dialog = reactive({
   show: false,
@@ -90,6 +141,10 @@ const handleDialogConfirm = (payload?: string) => {
   if (pendingAction) {
     pendingAction(payload);
     pendingAction = null;
+    nextTick(() => {
+      updateScrollState('student');
+      updateScrollState('poem');
+    });
   }
 };
 
@@ -100,6 +155,10 @@ const fetchConfig = async () => {
     if (json.code === 200) {
       students.value = json.data.students || [];
       poems.value = json.data.poems || [];
+      nextTick(() => {
+        updateScrollState('student');
+        updateScrollState('poem');
+      });
     }
   } catch (e) { console.error(e); }
 };
@@ -124,37 +183,44 @@ const saveConfig = async () => {
   } finally { isSaving.value = false; }
 };
 
-onMounted(() => fetchConfig());
+onMounted(() => {
+  fetchConfig();
+});
 
 const openStudentDialog = () => {
   summonDialog('input', '🎯 录入新目标', '输入学生姓名...', (n) => n && students.value.push(n));
 };
-const removeStudent = (i: number) => students.value.splice(i, 1);
+const removeStudent = (i: number) => {
+  students.value.splice(i, 1);
+  nextTick(() => updateScrollState('student'));
+};
 
 const openPoemDialog = () => {
   summonDialog('input', '📜 填装篇目', '格式: 《篇目》-作者 (例: 《短歌行》-曹操)', (p) => {
     if (!p) return;
     const parts = p.split(/[-—]/);
-    if (parts.length >= 2) {
+    if (parts.length >= 2 && parts[0] !== undefined && parts[1] !== undefined) {
       const title = parts[0].replace(/[《》]/g, '').trim();
       const author = parts[1].trim();
       poems.value.push({ title, author });
     } else {
-      // 如果没按格式填，至少把输入的当标题
       poems.value.push({ title: p.trim(), author: '佚名' });
     }
+    nextTick(() => updateScrollState('poem'));
   });
 };
-const removePoem = (i: number) => poems.value.splice(i, 1);
+const removePoem = (i: number) => {
+  poems.value.splice(i, 1);
+  nextTick(() => updateScrollState('poem'));
+};
 </script>
 
 <style scoped>
-/* 样式保持不变，但移除了 book-group 相关 */
 .manga-panel {
   background: var(--manga-white);
   border: 5px solid var(--manga-black);
   box-shadow: 12px 12px 0px var(--manga-black);
-  width: 950px;
+  width: 1000px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -177,48 +243,92 @@ const removePoem = (i: number) => poems.value.splice(i, 1);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  z-index: 10;
+  z-index: 100;
   clip-path: polygon(0 0, 100% 0, 99% 100%, 1% 100%);
 }
 
 .close-btn { cursor: pointer; transition: color 0.2s; }
 .close-btn:hover { color: var(--manga-red); }
 
-.panel-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  scrollbar-width: thick;
-  scrollbar-color: var(--manga-black) #eee;
+.panel-body { 
+  display: flex; 
+  gap: 20px; 
+  padding: 30px;
+  height: 520px; 
 }
-.panel-scroll-area::-webkit-scrollbar { width: 12px; }
-.panel-scroll-area::-webkit-scrollbar-track { background: #eee; border-left: 3px solid var(--manga-black); }
-.panel-scroll-area::-webkit-scrollbar-thumb { background-color: var(--manga-black); border: 2px solid #eee; }
-
-.panel-body { display: flex; gap: 20px; align-items: flex-start; }
 
 .comic-frame {
   flex: 1;
-  border: 3px dashed var(--manga-black);
-  padding: 40px 15px 15px;
+  border: 4px solid var(--manga-black);
   position: relative;
   background: #fff;
-  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; 
+  box-shadow: 5px 5px 0 rgba(0,0,0,0.1);
 }
+
+.scroll-viewport {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 65px 20px 30px 40px; /* 调整内边距 */
+  scrollbar-width: none; 
+}
+.scroll-viewport::-webkit-scrollbar { display: none; }
+
+/* 增加末尾缓冲，防止最后一列贴边 */
+.tag-list::after {
+  content: "";
+  display: block;
+  width: 60px; /* 战术留白空间 */
+  height: 100%;
+}
+
+.nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 45px;
+  height: 45px;
+  background: var(--manga-yellow);
+  border: 3px solid var(--manga-black);
+  color: var(--manga-black);
+  font-size: 24px;
+  font-weight: 900;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 4px 4px 0 var(--manga-black);
+  transition: all 0.1s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.nav-btn:active { transform: translateY(-50%) translate(2px, 2px); box-shadow: 2px 2px 0 var(--manga-black); }
+.nav-btn:disabled { background: #ccc; cursor: not-allowed; opacity: 0.3; box-shadow: none; }
+.nav-btn.left { left: 5px; }
+.nav-btn.right { right: 5px; }
 
 .frame-title {
   position: absolute;
-  top: 10px; left: 10px;
+  top: 15px; left: 15px;
   background: var(--manga-yellow);
   border: 3px solid var(--manga-black);
   padding: 5px 15px;
   font-size: 18px;
-  font-weight: bold;
+  font-weight: 900;
   box-shadow: 4px 4px 0 var(--manga-black);
-  z-index: 5;
+  z-index: 60;
+  pointer-events: none;
 }
 
-.tag-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.tag-list { 
+  display: flex; 
+  flex-flow: column wrap; 
+  gap: 12px; 
+  height: 100%; 
+  align-content: flex-start;
+}
 
 .panel-footer {
   flex-shrink: 0;
