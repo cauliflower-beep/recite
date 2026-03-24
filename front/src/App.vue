@@ -12,6 +12,11 @@ interface Mission {
   status: 'PENDING' | 'PASS' | 'FAIL';
 }
 
+interface ClassStudents {
+  className: string;
+  members: string[];
+}
+
 type GameState = 'IDLE' | 'ROLLING' | 'BATTLE' | 'SUMMARY';
 
 // --- 基础配置与响应式状态 ---
@@ -54,7 +59,7 @@ const failSlogans = [
   "这可是送分题啊，我的朋友！",
   "快醒醒，现在不是在梦境里！",
   "技能冷却中...请回炉重造！",
-  "语文老师的死亡凝视，你感受到了吗？",
+  "宋老师的死亡凝视，你感受到了吗？",
   "难道...你中了遗忘魔咒？",
   "不会吧不会吧，真有人背不出来？"
 ];
@@ -171,8 +176,14 @@ const playSound = async (type: SoundType) => {
   }
 };
 
-const students = ref<string[]>([]);
+const classes = ref<ClassStudents[]>([]);
+const currentClassName = ref<string>('');
 const poems = ref<{ title: string; author: string }[]>([]);
+
+const currentStudents = computed(() => {
+  const cls = classes.value.find(c => c.className === currentClassName.value);
+  return cls ? cls.members : [];
+});
 
 // 当前选中的任务（用于大屏显示）
 const activeMission = computed(() => missionQueue.value[activeIdx.value] || null);
@@ -190,7 +201,10 @@ const loadData = async () => {
     const res = await fetch('/api/config');
     const json = await res.json();
     if (json.code === 200) {
-      students.value = json.data.students || [];
+      classes.value = json.data.classes || [];
+      if (classes.value.length > 0) {
+        currentClassName.value = classes.value[0]?.className ?? '';
+      }
       poems.value = json.data.poems || [];
     }
   } catch (e) {
@@ -202,7 +216,7 @@ const loadData = async () => {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const startBatchRoll = async () => {
-  if (students.value.length < selectionCount.value) return alert("学生人数不足！");
+  if (currentStudents.value.length < selectionCount.value) return alert("当前班级学生人数不足！");
   if (poems.value.length < selectionCount.value) return alert("课文储备不足！");
 
   // 1. 初始化
@@ -236,7 +250,7 @@ const startBatchRoll = async () => {
     
     while (Date.now() - rollStart < rollDuration) {
       // 随机池过滤已选中的
-      const availableStudents = students.value.filter(s => !usedStudents.has(s));
+      const availableStudents = currentStudents.value.filter(s => !usedStudents.has(s));
       const availablePoems = poems.value.filter(p => !usedPoems.has(p.title));
 
       const randomS = availableStudents[Math.floor(Math.random() * availableStudents.length)];
@@ -310,9 +324,41 @@ onUnmounted(() => {
 
 <template>
   <div class="app-container">
+    <!-- 极致燃向：漫画集中线背景层 -->
+    <div class="manga-focus-lines"></div>
+    
+    <!-- 极致燃向：无限滚动的警告封条 -->
+    <div class="hazard-tape tape-top">
+      <div class="tape-text">CAUTION /// BATTLE ZONE /// NO ESCAPE /// CAUTION /// BATTLE ZONE /// NO ESCAPE /// CAUTION /// BATTLE ZONE /// NO ESCAPE ///</div>
+    </div>
+    <div class="hazard-tape tape-bottom">
+      <div class="tape-text">STAND BY /// TARGET LOCKED /// ENGAGE /// STAND BY /// TARGET LOCKED /// ENGAGE /// STAND BY /// TARGET LOCKED /// ENGAGE ///</div>
+    </div>
+
+    <!-- 极致燃向：动态漂浮的漫画拟声词/图腾 -->
+    <div class="manga-sfx-container">
+      <div class="manga-sfx sfx-1">ドドドド</div>
+      <div class="manga-sfx sfx-2">ゴゴゴゴ</div>
+      <div class="manga-sfx sfx-3">BAM!</div>
+    </div>
+    
     <div class="main-layout">
       <!-- 顶栏：配置与人数设置 -->
       <div class="top-bar">
+        <div class="radical-class-selector" v-if="gameState === 'IDLE'">
+          <div class="rcs-track">
+            <div 
+              v-for="cls in classes" 
+              :key="cls.className" 
+              class="rcs-item"
+              :class="{ 'is-active': currentClassName === cls.className }"
+              @click="currentClassName = cls.className; playSound('ui')"
+            >
+              <span class="rcs-text">{{ cls.className }}</span>
+              <div class="rcs-bg"></div>
+            </div>
+          </div>
+        </div>
         <div class="count-selector" v-if="gameState === 'IDLE'">
             <span class="label">作战人数:</span>
             <input type="range" min="1" max="10" v-model.number="selectionCount" @input="handleSelectionCountInput">
@@ -382,49 +428,49 @@ onUnmounted(() => {
           <div class="divider-line"></div>
         </div>
 
-        <!-- B. 任务队列分镜 -->
-        <div class="mission-log comic-panel" v-if="gameState !== 'SUMMARY'">
-          <div class="panel-tag log-tag">MISSION QUEUE / 作战序列</div>
-          
-          <!-- 任务进度条 -->
-          <div class="progress-container" v-if="gameState !== 'IDLE'">
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: `${missionProgress}%` }"></div>
-            </div>
-            <div class="progress-text">
-              <span>{{ activeIdx }} / {{ missionQueue.length }}</span>
-            </div>
+        <!-- B. 任务队列分镜 (移除白色背景框，改为悬浮堆叠卡片流) -->
+        <div class="mission-log-radical" v-if="gameState !== 'SUMMARY'">
+          <!-- 悬浮的巨型标题 -->
+          <div class="radical-log-title">
+            <span class="bg-text">QUEUE</span>
+            <span class="fg-text">作战序列</span>
           </div>
 
-          <div class="log-list">
+          <div class="log-list-radical">
             <div 
               v-for="(mission, index) in missionQueue" 
               :key="index" 
-              class="log-card"
-              :class="{ 'is-active': index === activeIdx, [mission.status]: true }"
+              class="radical-log-card"
+              :class="{ 
+                'is-active': index === activeIdx, 
+                'is-past': index < activeIdx,
+                [mission.status]: true 
+              }"
+              :style="{ '--card-idx': index }"
             >
-              <!-- 漫画风序号标牌 -->
-              <div class="log-idx-wrapper">
-                <div class="log-idx-bg"></div>
-                <div class="log-idx">No.{{ index + 1 }}</div>
-              </div>
+              <!-- 左侧大序号 -->
+              <div class="r-card-idx">{{ String(index + 1).padStart(2, '0') }}</div>
               
-              <div class="log-body">
-                <div class="log-name">{{ mission.student }}</div>
-                <div class="log-poem">
-                  <span class="poem-title">《{{ mission.poem }}》</span>
-                  <span class="poem-author">{{ mission.author }}</span>
+              <!-- 核心内容区 -->
+              <div class="r-card-body">
+                <div class="r-card-name">{{ mission.student }}</div>
+                <div class="r-card-mission">
+                  <span class="r-poem">《{{ mission.poem }}》</span>
+                  <span class="r-author">{{ mission.author }}</span>
                 </div>
               </div>
               
-              <!-- 漫画风状态印章 -->
-              <div class="log-status-stamp" :class="mission.status">
-                <div class="stamp-inner">{{ mission.status }}</div>
+              <!-- 爆裂状态印章 -->
+              <div class="r-card-stamp" v-if="mission.status !== 'PENDING'">
+                {{ mission.status }}
               </div>
+              
+              <!-- 装饰性胶带/涂鸦 -->
+              <div class="r-card-deco"></div>
             </div>
-            <div v-if="missionQueue.length === 0" class="log-empty">
-              <div class="empty-text">NO MISSIONS</div>
-              <div class="empty-subtext">等待情报载入...</div>
+            
+            <div v-if="missionQueue.length === 0" class="radical-log-empty">
+              WAITING FOR DEPLOYMENT...
             </div>
           </div>
         </div>
@@ -489,13 +535,128 @@ onUnmounted(() => {
 .app-container {
   width: 100vw; height: 100vh;
   overflow: hidden;
-  background-color: #e0e0e0;
-  background-image: radial-gradient(rgba(0,0,0,0.15) 15%, transparent 16%), 
-                    radial-gradient(rgba(0,0,0,0.15) 15%, transparent 16%);
-  background-size: 15px 15px;
-  background-position: 0 0, 7.5px 7.5px;
+  background-color: #000; /* 深邃的黑底，衬托高对比度 */
+  position: relative;
   display: flex; 
   flex-direction: column;
+}
+
+/* 1. 动态网点底图：红黑高对比度 */
+.app-container::before {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%; right: -50%; bottom: -50%;
+  background-image: radial-gradient(var(--manga-red) 15%, transparent 16%), 
+                    radial-gradient(var(--manga-red) 15%, transparent 16%);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+  opacity: 0.15;
+  z-index: 0;
+  pointer-events: none;
+  transform: rotate(-15deg);
+  animation: moveDotsFast 15s linear infinite;
+}
+
+@keyframes moveDotsFast {
+  0% { transform: rotate(-15deg) translate(0, 0); }
+  100% { transform: rotate(-15deg) translate(-150px, -150px); }
+}
+
+/* 2. 漫画集中线特效 (CSS 手搓放射线) */
+.manga-focus-lines {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    transparent 0deg 10deg,
+    rgba(255, 255, 255, 0.05) 10deg 12deg,
+    transparent 12deg 25deg,
+    rgba(255, 255, 255, 0.08) 25deg 26deg
+  );
+  z-index: 0;
+  pointer-events: none;
+  animation: focusPulse 0.1s infinite alternate;
+}
+
+@keyframes focusPulse {
+  0% { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.02); }
+}
+
+/* 3. 无限滚动的警告封条 */
+.hazard-tape {
+  position: absolute;
+  width: 120vw;
+  height: 40px;
+  background: var(--manga-yellow);
+  color: #000;
+  font-weight: 900;
+  font-size: 24px;
+  line-height: 40px;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  border-top: 4px solid #000;
+  border-bottom: 4px solid #000;
+  white-space: nowrap;
+}
+
+.tape-top {
+  top: 10%;
+  left: -10vw;
+  transform: rotate(-5deg);
+}
+
+.tape-bottom {
+  bottom: 10%;
+  left: -10vw;
+  transform: rotate(5deg);
+  background: var(--manga-red);
+  color: #fff;
+}
+
+.tape-text {
+  display: inline-block;
+  animation: scrollTape 10s linear infinite;
+  letter-spacing: 4px;
+}
+
+.tape-bottom .tape-text {
+  animation: scrollTape 12s linear infinite reverse;
+}
+
+@keyframes scrollTape {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* 4. 二次元拟声词/特效文字 */
+.manga-sfx-container {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.manga-sfx {
+  position: absolute;
+  font-family: impact, sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(255, 255, 255, 0.15);
+  filter: drop-shadow(4px 4px 0 rgba(0,0,0,0.5));
+}
+
+.sfx-1 { font-size: 15vw; top: 15%; left: 5%; transform: rotate(-15deg); animation: pulseSfx 2s infinite alternate; }
+.sfx-2 { font-size: 12vw; bottom: 20%; right: 5%; transform: rotate(10deg); animation: pulseSfx 3s infinite alternate-reverse; }
+.sfx-3 { font-size: 20vw; top: 40%; left: 30%; -webkit-text-stroke: 4px rgba(255, 0, 0, 0.05); transform: rotate(-5deg) scale(1.5); z-index: 0; }
+
+@keyframes pulseSfx {
+  0% { transform: rotate(-15deg) scale(1); opacity: 0.5; }
+  100% { transform: rotate(-15deg) scale(1.1); opacity: 1; }
 }
 
 .main-layout {
@@ -504,11 +665,108 @@ onUnmounted(() => {
   background: transparent;
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .top-bar { 
-  height: 80px; display: flex; justify-content: flex-end; align-items: center; 
-  padding: 0 40px; z-index: 10; gap: 20px;
+  height: 100px; display: flex; justify-content: flex-end; align-items: center; 
+  padding: 0 40px; z-index: 10; gap: 30px;
+}
+
+/* 激进版班级选择器 */
+.radical-class-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  position: relative;
+}
+
+.rcs-track {
+  display: flex;
+  gap: 10px;
+  background: #000;
+  padding: 8px 12px;
+  border: 4px solid #000;
+  transform: skewX(-10deg);
+  box-shadow: 6px 6px 0 rgba(0,0,0,0.8), -4px -4px 0 var(--manga-yellow);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 给轨道加个漫画网点背景 */
+.rcs-track::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: radial-gradient(#fff 10%, transparent 11%);
+  background-size: 4px 4px;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.rcs-item {
+  position: relative;
+  padding: 8px 20px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+  border: 3px solid transparent;
+}
+
+.rcs-text {
+  position: relative;
+  z-index: 2;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px 0 #000;
+  transition: all 0.2s;
+}
+
+.rcs-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #333;
+  z-index: 1;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* 悬浮态 */
+.rcs-item:hover .rcs-bg {
+  transform: scaleY(1);
+  background: #555;
+}
+
+/* 选中态（燃炸效果） */
+.rcs-item.is-active {
+  border-color: #000;
+  transform: scale(1.1) translateY(-2px);
+  z-index: 3;
+}
+
+.rcs-item.is-active .rcs-bg {
+  transform: scaleY(1);
+  background: var(--manga-yellow);
+}
+
+.rcs-item.is-active .rcs-text {
+  color: #000;
+  text-shadow: none;
+}
+
+/* 选中时的装饰锯齿 */
+.rcs-item.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: -3px; left: 0; right: 0;
+  height: 6px;
+  background: var(--manga-red);
+  z-index: 4;
 }
 
 .count-selector {
@@ -717,153 +975,210 @@ onUnmounted(() => {
   to { transform: scale(1.1) rotate(10deg); }
 }
 
-/* 右侧日志区 */
-.mission-log {
-  flex: 0 0 500px;
-  background: #fafafa;
-  background-image: repeating-linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), repeating-linear-gradient(45deg, #f0f0f0 25%, #fafafa 25%, #fafafa 75%, #f0f0f0 75%, #f0f0f0);
-  background-position: 0 0, 10px 10px;
-  background-size: 20px 20px;
+/* === 极致燃向：右侧任务队列 (Mission Log) === */
+.mission-log-radical {
+  width: 35vw;
+  max-width: 500px;
   display: flex;
   flex-direction: column;
-}
-
-/* 进度条设计 */
-.progress-container {
-  padding: 30px 20px 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  z-index: 10;
-  background: var(--manga-black);
-  border-bottom: 4px solid #000;
-  box-shadow: 0 4px 0 rgba(0,0,0,0.1);
-}
-
-.progress-bar {
-  flex: 1;
-  height: 24px;
-  background: #333;
-  border: 3px solid #000;
-  border-radius: 4px;
-  overflow: hidden;
   position: relative;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
-  transform: skewX(-15deg);
+  z-index: 10;
+  perspective: 1000px; /* 增加 3D 景深 */
 }
 
-.progress-fill {
-  height: 100%;
-  background: var(--manga-yellow);
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(255,255,255,0.4),
-    rgba(255,255,255,0.4) 15px,
-    transparent 15px,
-    transparent 30px
-  );
-  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border-right: 3px solid #000;
-  box-shadow: 0 0 10px rgba(255, 229, 0, 0.5);
+/* 巨型错位标题 */
+.radical-log-title {
+  position: relative;
+  margin-bottom: 30px;
+  height: 80px;
 }
 
-.progress-text {
-  font-family: "Impact", "Arial Black", sans-serif;
-  font-size: 28px;
+.radical-log-title .bg-text {
+  position: absolute;
+  top: -10px; left: -10px;
+  font-size: 80px;
+  font-weight: 900;
   font-style: italic;
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(255, 255, 255, 0.1);
+  letter-spacing: 5px;
+  z-index: 0;
+}
+
+.radical-log-title .fg-text {
+  position: absolute;
+  bottom: 0; left: 20px;
+  font-size: 32px;
   font-weight: 900;
   color: var(--manga-yellow);
-  text-shadow: 2px 2px 0 var(--manga-red);
-  min-width: 70px;
-  text-align: right;
+  background: #000;
+  padding: 5px 15px;
+  transform: skewX(-15deg);
+  border: 3px solid #fff;
+  box-shadow: 4px 4px 0 var(--manga-red);
+  z-index: 1;
+}
+
+/* 列表容器 */
+.log-list-radical {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 20px 50px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* 隐藏滚动条但保留功能 */
+  scrollbar-width: none;
+}
+.log-list-radical::-webkit-scrollbar { display: none; }
+
+/* 待处刑卡片本体 */
+.radical-log-card {
+  position: relative;
+  background: #fff;
+  border: 4px solid #000;
+  display: flex;
+  align-items: stretch;
+  transform: skewX(-5deg) rotate(calc(var(--card-idx) * -1deg + 0.5deg)); /* 错落排版 */
+  box-shadow: 8px 8px 0 rgba(0,0,0,0.8);
+  transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+  overflow: hidden;
+  opacity: 0.9;
+}
+
+/* 状态：已过去 (置灰、缩小) */
+.radical-log-card.is-past {
+  opacity: 0.5;
+  filter: grayscale(100%);
+  transform: scale(0.95) translateX(-10px) skewX(-5deg);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+}
+
+/* 状态：正在处刑 (极致放大、高亮、爆破感) */
+.radical-log-card.is-active {
+  opacity: 1;
+  transform: scale(1.1) translateX(-15px) skewX(-5deg) rotate(0deg);
+  box-shadow: 
+    15px 15px 0 #000,
+    -5px -5px 0 var(--manga-yellow),
+    10px -5px 0 var(--manga-red);
+  border-color: var(--manga-red);
+  border-width: 6px;
+  z-index: 100;
+  animation: cardShake 0.5s infinite alternate;
+}
+
+@keyframes cardShake {
+  0% { transform: scale(1.1) translateX(-15px) skewX(-5deg) rotate(0deg) translateY(0); }
+  100% { transform: scale(1.1) translateX(-15px) skewX(-5deg) rotate(0deg) translateY(-3px); }
+}
+
+/* 卡片左侧：大序号 */
+.r-card-idx {
+  background: #000;
+  color: var(--manga-yellow);
+  font-size: 32px;
+  font-weight: 900;
+  font-style: italic;
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 4px solid #000;
+}
+.is-active .r-card-idx {
+  background: var(--manga-red);
+  color: #fff;
+}
+
+/* 卡片核心内容 */
+.r-card-body {
+  flex: 1;
+  padding: 10px 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-image: radial-gradient(rgba(0,0,0,0.05) 20%, transparent 20%);
+  background-size: 4px 4px;
+}
+
+.r-card-name {
+  font-size: 24px;
+  font-weight: 900;
+  color: #000;
+  margin-bottom: 5px;
   letter-spacing: 2px;
 }
 
-.log-list {
-    flex: 1; padding: 20px 20px; display: flex; flex-direction: column; gap: 20px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-height: 0; /* 关键：允许 flex 子项收缩，从而触发滚动条 */
+.r-card-mission {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
-.log-card {
-    background: #fff; border: 4px solid #000; padding: 15px;
-    display: flex; align-items: center; gap: 15px; position: relative;
-    box-shadow: 6px 6px 0 rgba(0,0,0,0.1);
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    clip-path: polygon(2% 0, 100% 0, 98% 100%, 0 100%);
+.r-poem {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+}
+.r-author {
+  font-size: 12px;
+  color: #666;
+  background: #eee;
+  padding: 2px 6px;
+  border: 1px solid #000;
 }
 
-.log-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 8px 8px 0 rgba(0,0,0,0.2);
+/* 爆裂状态印章 (PASS / FAIL) */
+.r-card-stamp {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-15deg);
+  font-size: 40px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  padding: 0 10px;
+  border: 6px solid currentColor;
+  mix-blend-mode: multiply;
+  opacity: 0.8;
+  pointer-events: none;
 }
 
-.log-card.is-active {
-    border-color: var(--manga-red); border-width: 5px;
-    transform: scale(1.05) translateX(-10px);
-    box-shadow: 10px 10px 0 var(--manga-red);
-    z-index: 5;
-    clip-path: none;
-    background: repeating-linear-gradient(
-      -45deg,
-      #fff,
-      #fff 10px,
-      #fff9f9 10px,
-      #fff9f9 20px
-    );
+.radical-log-card.PASS .r-card-stamp {
+  color: #00AA00;
+  transform: translateY(-50%) rotate(-15deg) scale(1.2);
 }
 
-.log-card.PASS { background: #f0fdf4; border-color: #059669; }
-.log-card.FAIL { background: #fef2f2; border-color: #dc2626; }
-
-/* 序号标牌设计 */
-.log-idx-wrapper {
-    position: relative; width: 60px; height: 60px;
-    display: flex; justify-content: center; align-items: center;
-    transform: rotate(-5deg);
-}
-.log-idx-bg {
-    position: absolute; inset: 0; background: var(--manga-yellow);
-    border: 3px solid #000; clip-path: polygon(10% 0, 100% 10%, 90% 100%, 0 90%);
-}
-.is-active .log-idx-bg { background: var(--manga-red); }
-.log-idx {
-    position: relative; z-index: 1; font-weight: 900; font-size: 18px;
-    color: #000; text-shadow: 1px 1px 0 #fff;
-}
-.is-active .log-idx { color: #fff; text-shadow: 2px 2px 0 #000; font-size: 20px; }
-
-.log-body { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.log-name { font-size: 28px; font-weight: 900; letter-spacing: 1px; }
-.log-poem { display: flex; align-items: baseline; gap: 5px; }
-.poem-title { font-size: 20px; font-weight: bold; color: #333; }
-.poem-author { font-size: 14px; color: #888; background: #eee; padding: 2px 6px; border-radius: 4px; font-style: italic; }
-
-/* 状态印章设计 */
-.log-status-stamp {
-    width: 70px; height: 70px; display: flex; justify-content: center; align-items: center;
-    font-weight: 900; font-style: italic; font-size: 18px;
-    border: 3px solid #ccc; color: #ccc; border-radius: 50%;
-    transform: rotate(10deg); opacity: 0.5;
-}
-.stamp-inner { border: 1px solid currentColor; border-radius: 50%; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; }
-
-.PASS .log-status-stamp { 
-    color: #059669; border-color: #059669; opacity: 1; transform: rotate(-5deg) scale(1.1);
-    box-shadow: 2px 2px 0 rgba(5, 150, 105, 0.2);
-}
-.FAIL .log-status-stamp { 
-    color: #dc2626; border-color: #dc2626; opacity: 1; transform: rotate(15deg) scale(1.1);
-    box-shadow: 2px 2px 0 rgba(220, 38, 38, 0.2);
+.radical-log-card.FAIL .r-card-stamp {
+  color: #DD0000;
+  transform: translateY(-50%) rotate(10deg) scale(1.5);
+  border-style: dashed;
 }
 
-.log-empty {
-    height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: #bbb; gap: 10px;
+/* 装饰性黄色胶带 */
+.r-card-deco {
+  position: absolute;
+  bottom: -10px; right: 20px;
+  width: 60px; height: 15px;
+  background: var(--manga-yellow);
+  transform: rotate(-25deg);
+  mix-blend-mode: multiply;
+  z-index: 5;
+  opacity: 0.8;
 }
-.empty-text { font-size: 36px; font-weight: 900; font-style: italic; text-shadow: 2px 2px 0 #eee; }
-.empty-subtext { font-weight: bold; font-size: 16px; letter-spacing: 2px; }
+
+/* 空状态 */
+.radical-log-empty {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 24px;
+  font-weight: 900;
+  font-style: italic;
+  text-align: center;
+  margin-top: 50px;
+  transform: skewX(-10deg);
+}
 
 /* 判定反馈特效 */
 .feedback-overlay {

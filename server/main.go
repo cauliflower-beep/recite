@@ -23,10 +23,16 @@ type Poem struct {
 	Author string `json:"author"`
 }
 
+// ClassStudents 定义班级及其学生名单
+type ClassStudents struct {
+	ClassName string   `json:"className"`
+	Members   []string `json:"members"`
+}
+
 // ConfigPayload 用于前后端一次性交互的“大包”结构
 type ConfigPayload struct {
-	Students []string `json:"students"`
-	Poems    []Poem   `json:"poems"`
+	Classes []ClassStudents `json:"classes"`
+	Poems   []Poem          `json:"poems"`
 }
 
 // ================== 2. 文件读写工具函数 ==================
@@ -67,11 +73,11 @@ func main() {
 	{
 		// [接口 1]：拉取配置数据
 		api.GET("/config", func(c *gin.Context) {
-			var students []string
+			var classes []ClassStudents
 			var poems []Poem
 
-			if err := loadJSON("./data/students.json", &students); err != nil {
-				students = []string{}
+			if err := loadJSON("./data/students.json", &classes); err != nil {
+				classes = []ClassStudents{}
 			}
 			if err := loadJSON("./data/poems.json", &poems); err != nil {
 				poems = []Poem{}
@@ -81,8 +87,8 @@ func main() {
 				"code": 200,
 				"msg":  "作战数据读取成功！",
 				"data": ConfigPayload{
-					Students: students,
-					Poems:    poems,
+					Classes: classes,
+					Poems:   poems,
 				},
 			})
 		})
@@ -96,7 +102,7 @@ func main() {
 				return
 			}
 
-			err1 := saveJSON("./data/students.json", payload.Students)
+			err1 := saveJSON("./data/students.json", payload.Classes)
 			err2 := saveJSON("./data/poems.json", payload.Poems)
 
 			if err1 != nil || err2 != nil {

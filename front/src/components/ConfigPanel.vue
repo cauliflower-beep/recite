@@ -39,7 +39,23 @@
 
       <!-- B. 学生分镜 (Targets) -->
       <div class="comic-frame">
-        <div class="frame-title">B. 目标锁定 (Targets)</div>
+        <div class="frame-title" style="display: flex; flex-direction: column; gap: 10px;">
+          <span>B. 目标锁定 (Targets)</span>
+          <!-- 班级 Tag 列表 -->
+          <div class="class-tags" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px; pointer-events: auto;">
+            <div 
+              v-for="(cls, index) in classes" 
+              :key="cls.className" 
+              class="class-tag" 
+              :class="{ active: currentClassName === cls.className }"
+              @click.stop="currentClassName = cls.className; handleClassChange()"
+            >
+              {{ cls.className }}
+              <span class="delete-class-btn" @click.stop="removeClass(index)" v-if="classes.length > 1">×</span>
+            </div>
+            <div class="class-tag add-class-btn" @click="openClassDialog">+ 添加班级</div>
+          </div>
+        </div>
         
         <!-- 导航箭头 -->
         <button 
@@ -56,7 +72,7 @@
         <div class="scroll-viewport" ref="studentRef" @scroll="updateScrollState('student')">
           <div class="tag-list">
             <ActionTag 
-              v-for="(student, index) in students" 
+              v-for="(student, index) in currentStudents" 
               :key="'s-'+index" 
               :text="student" 
               @delete="removeStudent(index)" 
@@ -86,16 +102,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, nextTick } from 'vue';
+import { ref, onMounted, reactive, nextTick, computed } from 'vue';
 import ActionTag from './ActionTag.vue';
 import MangaDialog from './MangaDialog.vue';
 
 interface Poem { title: string; author: string; }
+interface ClassStudents { className: string; members: string[]; }
+
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void; }>();
 
-const students = ref<string[]>([]);
+const classes = ref<ClassStudents[]>([]);
+const currentClassName = ref<string>('');
 const poems = ref<Poem[]>([]);
 const isSaving = ref(false);
+
+const currentStudents = computed(() => {
+  const cls = classes.value.find(c => c.className === currentClassName.value);
+  return cls ? cls.members : [];
+});
+
+const handleClassChange = () => {
+  nextTick(() => updateScrollState('student'));
+};
 
 // 滚动控制逻辑
 const studentRef = ref<HTMLElement | null>(null);
@@ -153,7 +181,10 @@ const fetchConfig = async () => {
     const res = await fetch('/api/config');
     const json = await res.json();
     if (json.code === 200) {
-      students.value = json.data.students || [];
+      classes.value = json.data.classes || [];
+      if (classes.value.length > 0) {
+        currentClassName.value = classes.value[0]?.className || '';
+      }
       poems.value = json.data.poems || [];
       nextTick(() => {
         updateScrollState('student');
@@ -169,7 +200,7 @@ const saveConfig = async () => {
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ students: students.value, poems: poems.value })
+      body: JSON.stringify({ classes: classes.value, poems: poems.value })
     });
     const json = await res.json();
     if (json.code === 200) {
@@ -188,11 +219,45 @@ onMounted(() => {
 });
 
 const openStudentDialog = () => {
-  summonDialog('input', '🎯 录入新目标', '输入学生姓名...', (n) => n && students.value.push(n));
+  summonDialog('input', '🎯 录入新目标', '输入学生姓名...', (n) => {
+    if (n) {
+      const cls = classes.value.find(c => c.className === currentClassName.value);
+      if (cls) cls.members.push(n);
+    }
+  });
 };
 const removeStudent = (i: number) => {
-  students.value.splice(i, 1);
-  nextTick(() => updateScrollState('student'));
+  const cls = classes.value.find(c => c.className === currentClassName.value);
+  if (cls) {
+    cls.members.splice(i, 1);
+    nextTick(() => updateScrollState('student'));
+  }
+};
+
+const openClassDialog = () => {
+  summonDialog('input', '🏫 新建班级', '输入班级名称 (如: 12班)...', (n) => {
+    if (n && !classes.value.some(c => c.className === n)) {
+      classes.value.push({ className: n, members: [] });
+      currentClassName.value = n; // 自动选中新班级
+      nextTick(() => updateScrollState('student'));
+    } else if (classes.value.some(c => c.className === n)) {
+      summonDialog('info', '⚠️ 提示', '班级名称已存在！', ()=>{});
+    }
+  });
+};
+
+const removeClass = (index: number) => {
+  const cls = classes.value[index];
+  if (!cls) return;
+  summonDialog('confirm', '⚠️ 警告', `确定要删除【${cls.className}】及其所有学生数据吗？`, () => {
+    const deletedClass = classes.value[index]?.className || '';
+    classes.value.splice(index, 1);
+    // 如果删除的是当前选中的班级，自动选中第一个
+    if (currentClassName.value === deletedClass && classes.value.length > 0) {
+      currentClassName.value = classes.value[0]?.className || '';
+    }
+    nextTick(() => updateScrollState('student'));
+  });
 };
 
 const openPoemDialog = () => {
@@ -272,7 +337,7 @@ const removePoem = (i: number) => {
   flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 65px 20px 30px 40px; /* 调整内边距 */
+  padding: 120px 20px 30px 40px; /* 增加上边距，避免被变高的 frame-title 遮挡 */
   scrollbar-width: none; 
 }
 .scroll-viewport::-webkit-scrollbar { display: none; }
@@ -319,7 +384,61 @@ const removePoem = (i: number) => {
   font-weight: 900;
   box-shadow: 4px 4px 0 var(--manga-black);
   z-index: 60;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.class-tags {
+  margin-top: 10px;
+}
+
+.class-tag {
+  background: #333;
+  color: #fff;
+  padding: 5px 12px;
+  border: 2px solid #000;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+  box-shadow: 2px 2px 0 #000;
+  pointer-events: auto;
+}
+
+.class-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 #000;
+}
+
+.class-tag.active {
+  background: var(--manga-yellow);
+  color: #000;
+  font-weight: bold;
+  border-color: #000;
+}
+
+.delete-class-btn {
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 50%;
+}
+
+.delete-class-btn:hover {
+  background: rgba(255, 0, 0, 0.2);
+  color: red;
+}
+
+.add-class-btn {
+  background: #fff;
+  color: #000;
+  border-style: dashed;
+}
+
+.add-class-btn:hover {
+  background: #f0f0f0;
 }
 
 .tag-list { 
